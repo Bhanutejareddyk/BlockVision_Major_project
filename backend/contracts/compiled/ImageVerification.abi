@@ -62,6 +62,37 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "imageHash",
+        "type": "string"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -91,9 +122,9 @@
     "name": "getImageDetails",
     "outputs": [
       {
-        "internalType": "bool",
-        "name": "exists",
-        "type": "bool"
+        "internalType": "string",
+        "name": "imageHash",
+        "type": "string"
       },
       {
         "internalType": "address",
@@ -109,6 +140,11 @@
         "internalType": "string",
         "name": "fileName",
         "type": "string"
+      },
+      {
+        "internalType": "bool",
+        "name": "exists",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -168,6 +204,30 @@
   {
     "inputs": [
       {
+        "internalType": "string[]",
+        "name": "_hashes",
+        "type": "string[]"
+      },
+      {
+        "internalType": "string[]",
+        "name": "_fileNames",
+        "type": "string[]"
+      }
+    ],
+    "name": "registerBatch",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "string",
         "name": "_imageHash",
         "type": "string"
@@ -195,32 +255,61 @@
         "internalType": "string",
         "name": "_imageHash",
         "type": "string"
+      },
+      {
+        "internalType": "address",
+        "name": "_newOwner",
+        "type": "address"
       }
     ],
-    "name": "verifyImage",
+    "name": "transferOwnership",
     "outputs": [
       {
         "internalType": "bool",
         "name": "",
         "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_imageHash",
+        "type": "string"
+      }
+    ],
+    "name": "verifyImage",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "imageHash",
+        "type": "string"
       },
       {
         "internalType": "address",
-        "name": "",
+        "name": "owner",
         "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "timestamp",
         "type": "uint256"
       },
       {
         "internalType": "string",
-        "name": "",
+        "name": "fileName",
         "type": "string"
+      },
+      {
+        "internalType": "bool",
+        "name": "exists",
+        "type": "bool"
       }
     ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "view",
     "type": "function"
   }
 ]

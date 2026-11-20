@@ -1,5 +1,11 @@
+const path = require("path");
 require("@nomicfoundation/hardhat-toolbox");
-require("dotenv").config({ path: "../.env" });
+
+// Load .env from backend or root
+const envPath = require("fs").existsSync(path.resolve(__dirname, "../backend/.env"))
+  ? path.resolve(__dirname, "../backend/.env")
+  : path.resolve(__dirname, "../.env");
+require("dotenv").config({ path: envPath });
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
@@ -9,7 +15,8 @@ module.exports = {
       optimizer: {
         enabled: true,
         runs: 200
-      }
+      },
+      evmVersion: "paris"
     }
   },
 
@@ -19,9 +26,9 @@ module.exports = {
       chainId: 1337
     },
 
-    // Localhost
+    // Localhost / Ganache
     localhost: {
-      url: "http://127.0.0.1:8545"
+      url: "http://127.0.0.1:7545"
     },
 
     // Ganache
@@ -56,10 +63,11 @@ module.exports = {
   },
 
   paths: {
-    sources: "./contracts",
-    tests: "./test",
-    cache: "./cache",
-    artifacts: "./artifacts"
+    root: path.resolve(__dirname, ".."),
+    sources: path.resolve(__dirname, "../backend/contracts"),
+    tests: path.resolve(__dirname, "./test"),
+    cache: path.resolve(__dirname, "./cache"),
+    artifacts: path.resolve(__dirname, "./artifacts")
   },
 
   etherscan: {

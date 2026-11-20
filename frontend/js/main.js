@@ -254,34 +254,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (totalImagesElement) {
         try {
             const stats = await API.getStats();
-            if (stats.success) {
+            if (stats && stats.success) {
                 totalImagesElement.textContent = stats.total_images_registered || 0;
             }
         } catch (error) {
             console.error('Failed to load stats:', error);
         }
-    }
-
-    // Initialize wallet connection button
-    const connectWalletBtn = document.getElementById('connectWallet');
-    if (connectWalletBtn && typeof window.Web3Handler !== 'undefined') {
-        connectWalletBtn.addEventListener('click', async () => {
-            try {
-                const account = await window.Web3Handler.connectWallet();
-                if (account) {
-                    connectWalletBtn.innerHTML = `
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <rect x="3" y="6" width="18" height="13" rx="2"/>
-                            <path d="M3 10h18"/>
-                        </svg>
-                        <span>${Utils.formatAddress(account)}</span>
-                    `;
-                    Utils.showToast('Connected!', 'Wallet connected successfully', 'success');
-                }
-            } catch (error) {
-                Utils.showToast('Connection Failed', error.message, 'error');
-            }
-        });
     }
 });
 

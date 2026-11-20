@@ -19,6 +19,8 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+backend/__pycache__/
+backend/*/__pycache__/
 
 # Virtual Environment
 venv/
@@ -28,6 +30,10 @@ ENV/
 # Environment Variables
 .env
 .env.local
+.env.development
+.env.production
+backend/.env
+backend/.env.local
 
 # Uploads and Keys
 backend/uploads/*
@@ -52,6 +58,14 @@ Thumbs.db
 blockchain/build/
 blockchain/node_modules/
 blockchain/.openzeppelin/
+blockchain/artifacts/
+blockchain/cache/
+
+# Executables / Solc
+backend/solc.exe
+*.exe
 
 # Logs
 *.log
+!.env.example
+!backend/.env.example

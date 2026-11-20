@@ -51,12 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Initialize function
     async function init() {
-        // Check if wallet is connected
-        if (window.Web3Handler && window.Web3Handler.account) {
-            userAddress = window.Web3Handler.account;
-        }
-
-        // Load stats
+        // Load stats first to obtain backend account info
         await loadStats();
         
         // Load history
@@ -68,8 +63,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const stats = await API.getStats();
             
-            if (stats.success) {
+            if (stats && stats.success) {
                 statTotalImages.textContent = stats.total_images_registered || 0;
+                if (stats.account_address) {
+                    userAddress = stats.account_address;
+                }
                 
                 if (stats.connected) {
                     statNetworkStatus.innerHTML = `

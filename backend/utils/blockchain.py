@@ -1,22 +1,33 @@
+import os
+import json
 from web3 import Web3
 from eth_account import Account
-import json
-import os
+from config import Config
+
+# Default ABI path
+DEFAULT_ABI_PATH = os.path.join(
+    os.path.dirname(__file__),
+    '..',
+    'contracts',
+    'compiled',
+    'ImageVerification.abi'
+)
+
+
+def load_contract_abi(abi_file=None):
+    """Load contract ABI from file with default fallback"""
+    target_path = abi_file or DEFAULT_ABI_PATH
+    if not os.path.exists(target_path):
+        raise FileNotFoundError(f"Contract ABI not found at {target_path}. Please run python deploy.py first.")
+    with open(target_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
 
 class BlockchainInterface:
     """Interface for interacting with Ethereum blockchain"""
     
     def __init__(self, node_url, contract_address, contract_abi, private_key=None):
-        """
-        Initialize blockchain interface
-        
-        Args:
-            node_url: Ethereum node URL
-            contract_address: Deployed contract address
-            contract_abi: Contract ABI
-            private_key: Private key for transactions
-        """
+        """Initialize blockchain interface"""
         self.web3 = Web3(Web3.HTTPProvider(node_url))
         self.contract_address = Web3.to_checksum_address(contract_address) if contract_address else None
         self.private_key = private_key
@@ -38,8 +49,11 @@ class BlockchainInterface:
             self.account = None
     
     def is_connected(self):
-        """Check if connected to blockchain"""
-        return self.web3.is_connected()
+        """Check if connected to blockchain node"""
+        try:
+            return self.web3.is_connected()
+        except:
+            return False
     
     def get_balance(self, address=None):
         """Get ETH balance of an address"""
@@ -47,26 +61,25 @@ class BlockchainInterface:
             address = self.account.address
         
         if address:
-            balance = self.web3.eth.get_balance(Web3.to_checksum_address(address))
-            return self.web3.from_wei(balance, 'ether')
+            try:
+                balance = self.web3.eth.get_balance(Web3.to_checksum_address(address))
+                return float(self.web3.from_wei(balance, 'ether'))
+            except:
+                return 0
         return 0
     
     def register_image(self, image_hash, file_name):
         """
-        Register an image on the blockchain
-        
-        Args:
-            image_hash: SHA-256 hash of the image
-            file_name: Original file name
-            
-        Returns:
-            dict: Transaction receipt
+        Register an image on the blockchain.
+        Uses dynamic gas_price, chainId, and dual web3 v6/v7 raw_transaction compatibility.
         """
         if not self.contract or not self.account:
-            raise Exception("Contract or account not initialized")
+            raise RuntimeError("Contract or account not initialized")
         
         # Build transaction
         nonce = self.web3.eth.get_transaction_count(self.account.address)
+        gas_price = self.web3.eth.gas_price
+        chain_id = self.web3.eth.chain_id
         
         transaction = self.contract.functions.registerImage(
             image_hash,
@@ -74,8 +87,9 @@ class BlockchainInterface:
         ).build_transaction({
             'from': self.account.address,
             'nonce': nonce,
-            'gas': 2000000,
-            'gasPrice': self.web3.eth.gas_price
+            'gas': 500000,
+            'gasPrice': gas_price,
+            'chainId': chain_id
         })
         
         # Sign transaction
@@ -84,44 +98,40 @@ class BlockchainInterface:
             private_key=self.private_key
         )
         
+        # Dual compatibility: web3 v6 (rawTransaction) and v7+ (raw_transaction)
+        raw_tx = getattr(signed_txn, "raw_transaction", getattr(signed_txn, "rawTransaction", None))
+        
         # Send transaction
-        tx_hash = self.web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+        tx_hash = self.web3.eth.send_raw_transaction(raw_tx)
         
         # Wait for transaction receipt
         tx_receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
         
         return {
-            'status': 'success' if tx_receipt['status'] == 1 else 'failed',
+            'status': 'success' if tx_receipt.get('status') == 1 else 'failed',
             'transaction_hash': tx_hash.hex(),
-            'block_number': tx_receipt['blockNumber'],
-            'gas_used': tx_receipt['gasUsed']
+            'block_number': tx_receipt.get('blockNumber'),
+            'gas_used': tx_receipt.get('gasUsed')
         }
     
-    def verify_image(self, image_hash):
+    def get_image_details(self, image_hash):
         """
-        Verify an image on the blockchain
-        
-        Args:
-            image_hash: SHA-256 hash of the image
-            
-        Returns:
-            dict: Verification result
+        Get image details from blockchain view function.
+        ONE order everywhere: (imageHash, owner, timestamp, fileName, exists)
         """
         if not self.contract:
-            raise Exception("Contract not initialized")
+            raise RuntimeError("Contract not initialized")
         
         try:
-            # Call verifyImage function
-            result = self.contract.functions.verifyImage(image_hash).call()
-            
-            exists, owner, timestamp, file_name = result
+            result = self.contract.functions.getImageDetails(image_hash).call()
+            img_hash, owner, timestamp, file_name, exists = result
             
             return {
-                'exists': exists,
+                'exists': bool(exists),
+                'image_hash': img_hash,
                 'owner': owner,
                 'timestamp': timestamp,
-                'file_name': file_name,
-                'registered': exists
+                'file_name': file_name
             }
         except Exception as e:
             return {
@@ -129,75 +139,62 @@ class BlockchainInterface:
                 'error': str(e)
             }
     
-    def get_image_details(self, image_hash):
-        """
-        Get image details from blockchain (view function)
-        
-        Args:
-            image_hash: SHA-256 hash of the image
-            
-        Returns:
-            dict: Image details
-        """
-        if not self.contract:
-            raise Exception("Contract not initialized")
-        
-        try:
-            result = self.contract.functions.getImageDetails(image_hash).call()
-            exists, owner, timestamp, file_name = result
-            
+    def verify_image(self, image_hash):
+        """Verify an image on the blockchain using view function"""
+        details = self.get_image_details(image_hash)
+        if details.get('exists'):
             return {
-                'exists': exists,
-                'owner': owner,
-                'timestamp': timestamp,
-                'file_name': file_name
+                'exists': True,
+                'owner': details.get('owner'),
+                'timestamp': details.get('timestamp'),
+                'file_name': details.get('file_name'),
+                'registered': True
             }
-        except Exception as e:
-            return {'error': str(e)}
+        return {
+            'exists': False,
+            'registered': False,
+            'error': details.get('error', 'Image not registered')
+        }
     
     def is_image_registered(self, image_hash):
-        """Check if image is registered"""
+        """Check if image hash is registered"""
         if not self.contract:
             return False
-        
         try:
             return self.contract.functions.isImageRegistered(image_hash).call()
         except:
             return False
     
     def get_user_images(self, user_address):
-        """Get all images registered by a user"""
+        """Get all image hashes registered by a user"""
         if not self.contract:
-            raise Exception("Contract not initialized")
-        
+            raise RuntimeError("Contract not initialized")
         try:
-            image_hashes = self.contract.functions.getUserImages(
-                Web3.to_checksum_address(user_address)
-            ).call()
-            
-            return image_hashes
+            checksum_addr = Web3.to_checksum_address(user_address)
+            return self.contract.functions.getUserImages(checksum_addr).call()
         except Exception as e:
+            print(f"Error fetching user images: {e}")
             return []
     
     def get_total_images(self):
         """Get total number of registered images"""
         if not self.contract:
             return 0
-        
         try:
             return self.contract.functions.getTotalImages().call()
         except:
             return 0
     
+    def get_image_by_index(self, index):
+        """Wrapper to get image hash by index"""
+        if not self.contract:
+            raise RuntimeError("Contract not initialized")
+        return self.contract.functions.getImageByIndex(index).call()
+    
     def get_transaction_history(self, address=None):
         """
-        Get transaction history for an address
-        
-        Args:
-            address: Ethereum address (uses default account if None)
-            
-        Returns:
-            list: Transaction history
+        Get transaction history for an address.
+        Optimized to search only the last 100 blocks (not 1000) for performance.
         """
         if address is None and self.account:
             address = self.account.address
@@ -205,25 +202,25 @@ class BlockchainInterface:
         if not address:
             return []
         
-        # Get latest block number
         latest_block = self.web3.eth.block_number
-        
         transactions = []
         
-        # Search recent blocks (limit to last 1000 blocks for performance)
-        start_block = max(0, latest_block - 1000)
+        # Search recent 100 blocks only
+        start_block = max(0, latest_block - 100)
+        target_addr = address.lower()
         
         for block_num in range(start_block, latest_block + 1):
             try:
                 block = self.web3.eth.get_block(block_num, full_transactions=True)
-                
                 for tx in block.transactions:
-                    if tx['from'] == address or tx['to'] == address:
+                    tx_from = tx.get('from', '') or ''
+                    tx_to = tx.get('to', '') or ''
+                    if tx_from.lower() == target_addr or tx_to.lower() == target_addr:
                         transactions.append({
                             'hash': tx['hash'].hex(),
-                            'from': tx['from'],
-                            'to': tx['to'],
-                            'value': self.web3.from_wei(tx['value'], 'ether'),
+                            'from': tx_from,
+                            'to': tx_to,
+                            'value': float(self.web3.from_wei(tx['value'], 'ether')),
                             'block_number': block_num,
                             'timestamp': block['timestamp']
                         })
@@ -231,9 +228,29 @@ class BlockchainInterface:
                 continue
         
         return transactions
+
+
+def get_blockchain():
+    """
+    ONE helper function to get an initialized BlockchainInterface.
+    Dynamically reloads configuration and contract ABI.
+    """
+    contract_address = Config.CONTRACT_ADDRESS
+    if not contract_address:
+        raise RuntimeError("CONTRACT_ADDRESS not configured. Please run python deploy.py first.")
     
-    @staticmethod
-    def load_contract_abi(abi_file):
-        """Load contract ABI from file"""
-        with open(abi_file, 'r') as f:
-            return json.load(f)
+    abi = load_contract_abi()
+    node_url = Config.ETHEREUM_NODE_URL
+    private_key = Config.PRIVATE_KEY
+    
+    blockchain = BlockchainInterface(
+        node_url=node_url,
+        contract_address=contract_address,
+        contract_abi=abi,
+        private_key=private_key
+    )
+    
+    if not blockchain.is_connected():
+        raise RuntimeError(f"Cannot connect to blockchain node at {node_url}. Please ensure Ganache is running.")
+        
+    return blockchain

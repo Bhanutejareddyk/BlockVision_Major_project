@@ -43,7 +43,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function switchTab(tabName) {
         currentTab = tabName;
         
-        // Update buttons
         tabButtons.forEach(btn => {
             if (btn.dataset.tab === tabName) {
                 btn.classList.add('active');
@@ -52,7 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // Update content
         tabContents.forEach(content => {
             if (content.id === `${tabName}Tab`) {
                 content.classList.add('active');
@@ -61,8 +59,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // Reset states
         resetVerification();
+    }
+
+    // Auto-detect QR code verification link: ?hash=0x... or 64-char hex
+    const urlParams = new URLSearchParams(window.location.search);
+    const hashParam = urlParams.get('hash');
+    if (hashParam) {
+        const cleanHash = hashParam.trim();
+        if (cleanHash.length === 64) {
+            switchTab('hash');
+            hashInput.value = cleanHash;
+            verifyHashBtn.disabled = false;
+            verifyByHash(cleanHash);
+        }
     }
 
     // Upload Tab - Click to upload
@@ -191,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 displayResult(result);
                 verifyProgressBar.style.display = 'none';
                 verifyProgressFill.style.width = '0%';
-            }, 500);
+            }, 400);
 
         } catch (error) {
             Utils.showToast('Verification Failed', error.message, 'error');
@@ -215,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 displayResult(result);
                 verifyProgressBar.style.display = 'none';
                 verifyProgressFill.style.width = '0%';
-            }, 500);
+            }, 400);
 
         } catch (error) {
             Utils.showToast('Verification Failed', error.message, 'error');
@@ -228,8 +238,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function displayResult(data) {
         if (data.verified && data.authentic) {
             // Image is verified
-            verifyResultTitle.textContent = '✓ Verified & Authentic';
-            verifyResultMessage.textContent = 'This image is registered on the blockchain';
+            verifyResultTitle.textContent = 'Verified & Authentic';
+            verifyResultMessage.textContent = 'This image is registered on the blockchain with cryptographic authenticity';
             
             verifyResultIcon.innerHTML = `
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -241,12 +251,27 @@ document.addEventListener('DOMContentLoaded', () => {
             verifyResultIcon.classList.add('success');
 
             const details = [
-                { label: 'Status', value: '<span class="status-badge verified">✓ Verified</span>' },
-                { label: 'Image Hash', value: data.image_hash, class: 'hash' },
+                { label: 'Status', value: '<span class="status-badge verified">Verified</span>' },
+                { label: 'Image Hash (SHA-256)', value: data.image_hash, class: 'hash' },
                 { label: 'Owner Address', value: data.owner, class: 'hash' },
                 { label: 'Registration Date', value: data.registration_date },
                 { label: 'Original Filename', value: data.original_filename }
             ];
+
+            if (data.perceptual_hash) {
+                details.push({
+                    label: 'Perceptual Hash (dHash)',
+                    value: data.perceptual_hash,
+                    class: 'hash'
+                });
+            }
+
+            if (data.watermark_detected) {
+                details.push({
+                    label: 'Steganographic Watermark',
+                    value: `<span class="status-badge verified" style="font-size:0.75rem;">Embedded: ${data.embedded_watermark || 'tx_hash'}</span>`
+                });
+            }
 
             if (data.uploaded_filename) {
                 details.push({ 
@@ -272,8 +297,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } else {
             // Image not verified
-            verifyResultTitle.textContent = '✗ Not Verified';
-            verifyResultMessage.textContent = 'This image is not registered on the blockchain';
+            verifyResultTitle.textContent = 'Not Verified';
+            verifyResultMessage.textContent = 'This image was not found on the blockchain';
             
             verifyResultIcon.innerHTML = `
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -286,10 +311,18 @@ document.addEventListener('DOMContentLoaded', () => {
             verifyResultIcon.classList.add('error');
 
             const details = [
-                { label: 'Status', value: '<span class="status-badge not-verified">✗ Not Verified</span>' },
-                { label: 'Image Hash', value: data.image_hash, class: 'hash' },
-                { label: 'Message', value: 'Image not found in blockchain records' }
+                { label: 'Status', value: '<span class="status-badge not-verified">Not Verified</span>' },
+                { label: 'Image Hash (SHA-256)', value: data.image_hash, class: 'hash' },
+                { label: 'Message', value: data.message || 'Image not found in blockchain records' }
             ];
+
+            if (data.perceptual_hash) {
+                details.push({
+                    label: 'Perceptual Hash (dHash)',
+                    value: data.perceptual_hash,
+                    class: 'hash'
+                });
+            }
 
             if (data.uploaded_filename) {
                 details.push({ 
@@ -306,7 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `).join('') + `
                 <div class="detail-item" style="background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.2);">
                     <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">
-                        💡 <strong>Tip:</strong> If you own this image, you can register it on the blockchain to prove authenticity and ownership.
+                        <strong>Tip:</strong> If you own this image, you can register it on the blockchain via the Register page to secure authenticity and copyright proof.
                     </p>
                 </div>
             `;

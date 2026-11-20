@@ -395,15 +395,46 @@ document.addEventListener('DOMContentLoaded', () => {
         yPos += 5;
         doc.text(`Generated on: ${new Date().toLocaleString()}`, 105, yPos, { align: 'center' });
         
-        // QR code placeholder (text version)
-        doc.setFontSize(7);
+        // Interactive Scannable Verification QR Code
+        doc.setFontSize(8);
         yPos += 10;
         const hashPreview = uploadedData.image_hash ? uploadedData.image_hash.slice(0, 8) : 'unknown';
-        doc.text('Verify online at: blockvision.verify/' + hashPreview, 105, yPos, { align: 'center' });
+        const verifyUrl = `${window.location.origin}/verify?hash=${uploadedData.image_hash}`;
+        doc.text('Scan QR to verify provenance online:', 20, yPos);
 
-        // Save PDF
+        try {
+            if (typeof QRCode !== 'undefined') {
+                const qrContainer = document.createElement('div');
+                qrContainer.style.display = 'none';
+                document.body.appendChild(qrContainer);
+
+                new QRCode(qrContainer, {
+                    text: verifyUrl,
+                    width: 128,
+                    height: 128
+                });
+
+                setTimeout(() => {
+                    const qrImg = qrContainer.querySelector('img');
+                    const qrCanvas = qrContainer.querySelector('canvas');
+                    const qrData = (qrImg && qrImg.src) || (qrCanvas && qrCanvas.toDataURL());
+                    if (qrData) {
+                        doc.addImage(qrData, 'PNG', 150, yPos - 8, 35, 35);
+                    }
+                    if (qrContainer.parentNode) {
+                        document.body.removeChild(qrContainer);
+                    }
+                    doc.save(`certificate_${hashPreview}.pdf`);
+                    Utils.showToast('Downloaded!', 'Certificate with scannable QR Code downloaded as PDF', 'success');
+                }, 150);
+                return;
+            }
+        } catch (qrErr) {
+            console.warn('QR Code generation fallback:', qrErr);
+        }
+
+        // Save PDF fallback
         doc.save(`certificate_${hashPreview}.pdf`);
-
         Utils.showToast('Downloaded!', 'Certificate downloaded successfully as PDF', 'success');
     }
 });

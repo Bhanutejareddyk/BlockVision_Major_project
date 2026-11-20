@@ -1,11 +1,11 @@
 import os
-from PIL import Image
 import io
+from PIL import Image
 from werkzeug.utils import secure_filename
 
 
 class ImageHandler:
-    """Handle image processing and validation"""
+    """Handle image processing and validation safely across operating systems"""
     
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
     MAX_SIZE = 16 * 1024 * 1024  # 16MB
@@ -19,49 +19,33 @@ class ImageHandler:
     @staticmethod
     def validate_image(file_data):
         """
-        Validate if file is a valid image
-        
-        Args:
-            file_data: Binary file data or file path
-            
-        Returns:
-            tuple: (is_valid, error_message)
+        Validate if file is a valid image.
+        Ensures file handle is properly closed to prevent Windows PermissionError / file locks.
         """
         try:
             if isinstance(file_data, str):
-                img = Image.open(file_data)
+                with Image.open(file_data) as img:
+                    img.verify()
             else:
-                img = Image.open(io.BytesIO(file_data))
-            
-            # Verify it's a valid image
-            img.verify()
-            
+                with Image.open(io.BytesIO(file_data)) as img:
+                    img.verify()
             return True, None
         except Exception as e:
             return False, f"Invalid image: {str(e)}"
     
     @staticmethod
     def save_uploaded_file(file, upload_folder, custom_name=None):
-        """
-        Save uploaded file securely
-        
-        Args:
-            file: FileStorage object from Flask
-            upload_folder: Folder to save the file
-            custom_name: Custom filename (uses original if None)
-            
-        Returns:
-            tuple: (file_path, filename)
-        """
+        """Save uploaded file securely with collision avoidance"""
         if custom_name:
             filename = secure_filename(custom_name)
         else:
             filename = secure_filename(file.filename)
         
-        # Ensure upload folder exists
+        if not filename:
+            filename = "uploaded_image.png"
+            
         os.makedirs(upload_folder, exist_ok=True)
         
-        # Create unique filename if file exists
         base_name, ext = os.path.splitext(filename)
         counter = 1
         final_filename = filename
@@ -77,50 +61,25 @@ class ImageHandler:
     
     @staticmethod
     def compress_image(input_path, output_path=None, quality=85, max_size=None):
-        """
-        Compress image while maintaining quality
-        
-        Args:
-            input_path: Input image path
-            output_path: Output path (overwrites input if None)
-            quality: JPEG quality (1-100)
-            max_size: Maximum dimension (width or height)
-            
-        Returns:
-            str: Output file path
-        """
+        """Compress image while maintaining quality"""
         if output_path is None:
             output_path = input_path
         
         with Image.open(input_path) as img:
-            # Convert RGBA to RGB if saving as JPEG
             if img.mode == 'RGBA' and output_path.lower().endswith('.jpg'):
                 img = img.convert('RGB')
             
-            # Resize if max_size specified
             if max_size:
                 img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
             
-            # Save with compression
             img.save(output_path, quality=quality, optimize=True)
         
         return output_path
     
     @staticmethod
     def create_thumbnail(input_path, output_path, size=(200, 200)):
-        """
-        Create thumbnail of image
-        
-        Args:
-            input_path: Input image path
-            output_path: Output thumbnail path
-            size: Thumbnail size tuple (width, height)
-            
-        Returns:
-            str: Output file path
-        """
+        """Create thumbnail of image"""
         with Image.open(input_path) as img:
-            # Convert RGBA to RGB if needed
             if img.mode == 'RGBA':
                 img = img.convert('RGB')
             
@@ -131,19 +90,11 @@ class ImageHandler:
     
     @staticmethod
     def get_image_info(file_path):
-        """
-        Get detailed image information
-        
-        Args:
-            file_path: Path to image file
-            
-        Returns:
-            dict: Image information
-        """
+        """Get detailed image information with safe fallbacks"""
         try:
             with Image.open(file_path) as img:
                 info = {
-                    'format': img.format,
+                    'format': img.format or 'Unknown',
                     'mode': img.mode,
                     'size': img.size,
                     'width': img.width,
@@ -151,35 +102,29 @@ class ImageHandler:
                     'file_size': os.path.getsize(file_path),
                     'file_name': os.path.basename(file_path)
                 }
-                
-                # Add EXIF data if available
                 if hasattr(img, '_getexif') and img._getexif():
                     info['exif'] = img._getexif()
-                
                 return info
         except Exception as e:
-            return {'error': str(e)}
+            file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+            return {
+                'format': 'Unknown',
+                'mode': 'RGB',
+                'size': (0, 0),
+                'width': 0,
+                'height': 0,
+                'file_size': file_size,
+                'file_name': os.path.basename(file_path),
+                'error': str(e)
+            }
     
     @staticmethod
     def convert_to_format(input_path, output_path, output_format='PNG'):
-        """
-        Convert image to different format
-        
-        Args:
-            input_path: Input image path
-            output_path: Output image path
-            output_format: Target format (PNG, JPEG, etc.)
-            
-        Returns:
-            str: Output file path
-        """
+        """Convert image to different format"""
         with Image.open(input_path) as img:
-            # Convert RGBA to RGB for JPEG
             if output_format.upper() == 'JPEG' and img.mode == 'RGBA':
                 img = img.convert('RGB')
-            
             img.save(output_path, format=output_format)
-        
         return output_path
     
     @staticmethod
@@ -190,9 +135,9 @@ class ImageHandler:
     
     @staticmethod
     def cleanup_file(file_path):
-        """Safely delete a file"""
+        """Safely delete a file without crashing"""
         try:
-            if os.path.exists(file_path):
+            if file_path and os.path.exists(file_path):
                 os.remove(file_path)
                 return True
         except Exception as e:

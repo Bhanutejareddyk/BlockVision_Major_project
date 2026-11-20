@@ -1,7 +1,7 @@
-from flask import Blueprint, request, jsonify
-import os
 from datetime import datetime
-from utils.blockchain import BlockchainInterface
+from flask import Blueprint, request, jsonify
+from web3 import Web3
+from utils.blockchain import get_blockchain
 from config import Config
 
 history_bp = Blueprint('history', __name__)
@@ -9,36 +9,15 @@ history_bp = Blueprint('history', __name__)
 
 @history_bp.route('/api/history/<address>', methods=['GET'])
 def get_user_history(address):
-    """Get transaction history for a user address"""
+    """Get registration history for a specific user address"""
     try:
-        # Initialize blockchain interface
-        if not Config.CONTRACT_ADDRESS:
-            return jsonify({'error': 'Blockchain not configured'}), 500
-        
-        abi_path = os.path.join(
-            os.path.dirname(__file__),
-            '..',
-            'contracts',
-            'compiled',
-            'ImageVerification.abi'
-        )
-        
-        if not os.path.exists(abi_path):
-            return jsonify({'error': 'Contract ABI not found'}), 500
-        
-        contract_abi = BlockchainInterface.load_contract_abi(abi_path)
-        
-        blockchain = BlockchainInterface(
-            Config.ETHEREUM_NODE_URL,
-            Config.CONTRACT_ADDRESS,
-            contract_abi,
-            Config.PRIVATE_KEY
-        )
-        
-        # Get user's images
+        # Validate Ethereum address
+        if not Web3.is_address(address):
+            return jsonify({'error': f"Invalid Ethereum address: '{address}'"}), 400
+
+        blockchain = get_blockchain()
         image_hashes = blockchain.get_user_images(address)
-        
-        # Get details for each image
+
         images = []
         for image_hash in image_hashes:
             details = blockchain.get_image_details(image_hash)
@@ -50,50 +29,26 @@ def get_user_history(address):
                     'registration_date': datetime.fromtimestamp(details['timestamp']).isoformat(),
                     'filename': details['file_name']
                 })
-        
+
         return jsonify({
             'success': True,
-            'address': address,
+            'address': Web3.to_checksum_address(address),
             'total_images': len(images),
             'images': images
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': f'Failed to fetch history: {str(e)}'}), 500
 
 
 @history_bp.route('/api/stats', methods=['GET'])
 def get_stats():
-    """Get blockchain statistics"""
+    """Get blockchain and system statistics"""
     try:
-        # Initialize blockchain interface
-        if not Config.CONTRACT_ADDRESS:
-            return jsonify({'error': 'Blockchain not configured'}), 500
-        
-        abi_path = os.path.join(
-            os.path.dirname(__file__),
-            '..',
-            'contracts',
-            'compiled',
-            'ImageVerification.abi'
-        )
-        
-        if not os.path.exists(abi_path):
-            return jsonify({'error': 'Contract ABI not found'}), 500
-        
-        contract_abi = BlockchainInterface.load_contract_abi(abi_path)
-        
-        blockchain = BlockchainInterface(
-            Config.ETHEREUM_NODE_URL,
-            Config.CONTRACT_ADDRESS,
-            contract_abi,
-            Config.PRIVATE_KEY
-        )
-        
-        # Get statistics
+        blockchain = get_blockchain()
         total_images = blockchain.get_total_images()
         is_connected = blockchain.is_connected()
-        
+
         stats = {
             'success': True,
             'connected': is_connected,
@@ -102,69 +57,49 @@ def get_stats():
             'network_id': Config.NETWORK_ID,
             'timestamp': datetime.now().isoformat()
         }
-        
-        # Get balance if account available
-        if Config.PRIVATE_KEY:
+
+        # Include account address and balance if available
+        if blockchain.account:
             balance = blockchain.get_balance()
+            stats['account_address'] = blockchain.account.address
             stats['account_balance'] = f"{balance} ETH"
-        
+
         return jsonify(stats), 200
-        
+
     except Exception as e:
         return jsonify({'error': f'Failed to fetch stats: {str(e)}'}), 500
 
 
 @history_bp.route('/api/all-images', methods=['GET'])
 def get_all_images():
-    """Get all registered images (with pagination)"""
+    """Get all registered images with pagination using wrapper method"""
     try:
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
-        
-        # Initialize blockchain interface
-        if not Config.CONTRACT_ADDRESS:
-            return jsonify({'error': 'Blockchain not configured'}), 500
-        
-        abi_path = os.path.join(
-            os.path.dirname(__file__),
-            '..',
-            'contracts',
-            'compiled',
-            'ImageVerification.abi'
-        )
-        
-        if not os.path.exists(abi_path):
-            return jsonify({'error': 'Contract ABI not found'}), 500
-        
-        contract_abi = BlockchainInterface.load_contract_abi(abi_path)
-        
-        blockchain = BlockchainInterface(
-            Config.ETHEREUM_NODE_URL,
-            Config.CONTRACT_ADDRESS,
-            contract_abi,
-            Config.PRIVATE_KEY
-        )
-        
-        # Get total images
+
+        if page < 1:
+            page = 1
+        if per_page < 1:
+            per_page = 20
+
+        blockchain = get_blockchain()
         total = blockchain.get_total_images()
-        
-        # Calculate pagination
+
         start_idx = (page - 1) * per_page
         end_idx = min(start_idx + per_page, total)
-        
+
         # Calculate retention cutoff time
         retention_days = Config.RETENTION_DAYS
         cutoff_timestamp = datetime.now().timestamp() - (retention_days * 24 * 60 * 60)
-        
-        # Fetch images
+
         images = []
         for idx in range(start_idx, end_idx):
             try:
-                image_hash = blockchain.contract.functions.getImageByIndex(idx).call()
+                # Use wrapper instead of direct contract function call
+                image_hash = blockchain.get_image_by_index(idx)
                 details = blockchain.get_image_details(image_hash)
-                
+
                 if details.get('exists'):
-                    # Check if image is within retention period
                     if details['timestamp'] >= cutoff_timestamp:
                         images.append({
                             'image_hash': image_hash,
@@ -173,17 +108,20 @@ def get_all_images():
                             'registration_date': datetime.fromtimestamp(details['timestamp']).isoformat(),
                             'filename': details['file_name']
                         })
-            except:
+            except Exception as item_err:
+                print(f"Error fetching image at index {idx}: {item_err}")
                 continue
-        
+
+        total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+
         return jsonify({
             'success': True,
             'total': total,
             'page': page,
             'per_page': per_page,
-            'total_pages': (total + per_page - 1) // per_page,
+            'total_pages': total_pages,
             'images': images
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': f'Failed to fetch images: {str(e)}'}), 500
