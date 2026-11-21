@@ -229,7 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
             { label: 'Block Number', value: data.block_number },
             { label: 'Gas Used', value: data.gas_used },
             { label: 'Timestamp', value: new Date(data.timestamp).toLocaleString() }
-        ];
+        ].filter(detail => !(detail.label === 'Gas Used' && !detail.value));
 
         if (data.encrypted) {
             details.push({ 

@@ -53,7 +53,8 @@ def get_stats():
             'success': True,
             'connected': is_connected,
             'total_images_registered': total_images,
-            'contract_address': Config.CONTRACT_ADDRESS,
+            'mode': blockchain.mode,
+            'contract_address': blockchain.contract_address,
             'network_id': Config.NETWORK_ID,
             'timestamp': datetime.now().isoformat()
         }

@@ -70,3 +70,6 @@ backend/solc.exe
 !.env.example
 !backend/.env.example
 .venv/
+
+# Local ledger data
+backend/data/
