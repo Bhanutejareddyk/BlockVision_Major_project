@@ -71,7 +71,7 @@ class Config(metaclass=ConfigMeta):
     FLASK_ENV = os.getenv('FLASK_ENV', 'development')
     
     # Upload Configuration
-    is_vercel = os.getenv('VERCEL') == '1' or os.path.exists('/tmp')
+    is_vercel = bool(os.getenv('VERCEL')) or bool(os.getenv('VERCEL_ENV')) or (os.name != 'nt' and os.path.exists('/tmp'))
     UPLOAD_FOLDER = '/tmp/uploads' if is_vercel else os.path.join(BACKEND_DIR, os.getenv('UPLOAD_FOLDER', 'uploads'))
     ENCRYPTED_FOLDER = '/tmp/encrypted' if is_vercel else os.path.join(BACKEND_DIR, os.getenv('ENCRYPTED_FOLDER', 'encrypted'))
     KEYS_FOLDER = '/tmp/keys' if is_vercel else os.path.join(BACKEND_DIR, os.getenv('KEYS_FOLDER', 'keys'))

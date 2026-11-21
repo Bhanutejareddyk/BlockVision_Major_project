@@ -99,6 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (batchFileInput) {
         batchFileInput.addEventListener('change', (e) => {
             const files = Array.from(e.target.files || []);
+            batchFileInput.value = ''; // Allow selecting same files again
             if (!files || files.length === 0) {
                 alert("Please select at least one image file");
                 return;
@@ -132,6 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // File input change
     fileInput.addEventListener('change', (e) => {
         const file = (e.target.files && e.target.files.length > 0) ? e.target.files[0] : null;
+        fileInput.value = ''; // Clear value so selecting the exact same file fires change event
         if (!file) {
             alert("Please select an image first");
             return;
@@ -220,7 +222,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isBatchMode) {
                 await handleBatchUploadAndRegister();
             } else {
+                // Upload image
                 await uploadImage();
+                // Await upload response, verify success, and then automatically register on blockchain
+                if (uploadedData && uploadedData.success && uploadedData.image_hash) {
+                    if (uploadBtn.querySelector('span')) {
+                        uploadBtn.querySelector('span').textContent = 'Registering on Blockchain...';
+                    }
+                    await registerOnBlockchain();
+                }
             }
         } catch (err) {
             console.error('Upload click handler caught error:', err);
@@ -273,6 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Download certificate
     if (downloadCertificate) {
         downloadCertificate.addEventListener('click', () => {
+            console.log("Download Certificate clicked");
             if (uploadedData) {
                 generateCertificate();
             }
@@ -282,8 +293,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Print certificate
     if (printCertificate) {
         printCertificate.addEventListener('click', () => {
-            if (uploadedData && typeof printCertificateA4 === 'function') {
-                printCertificateA4(uploadedData);
+            console.log("Print Certificate clicked");
+            if (uploadedData) {
+                if (typeof printCertificateA4 === 'function') {
+                    printCertificateA4(uploadedData);
+                } else if (typeof CertificateGenerator !== 'undefined' && typeof CertificateGenerator.print === 'function') {
+                    CertificateGenerator.print(uploadedData);
+                } else if (uploadedData.image_hash) {
+                    window.open(`${API_BASE}/certificate/${uploadedData.image_hash}`, '_blank');
+                }
             }
         });
     }
@@ -410,12 +428,25 @@ document.addEventListener('DOMContentLoaded', () => {
             progressFill.style.width = '30%';
 
             const encrypt = encryptOption ? encryptOption.checked : false;
-            const data = await API.uploadImage(selectedFile, encrypt);
+            let data;
+
+            try {
+                data = await API.uploadImage(selectedFile, encrypt);
+            } catch (err) {
+                // Auto re-auth on token expiration (401)
+                if (err.status === 401 && typeof Auth !== 'undefined') {
+                    console.log("401 detected, re-authenticating wallet session...");
+                    await Auth.loginWithWallet();
+                    data = await API.uploadImage(selectedFile, encrypt);
+                } else {
+                    throw err;
+                }
+            }
+
             console.log("Upload response received:", data);
+            progressFill.style.width = '70%';
 
-            progressFill.style.width = '100%';
-
-            if (data.success) {
+            if (data && data.success) {
                 uploadedData = data;
                 
                 if (data.near_duplicate || data.warning) {
@@ -429,18 +460,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         'warning'
                     );
                 } else {
-                    Utils.showToast('Success!', 'Image uploaded and hash generated', 'success');
+                    Utils.showToast('Uploaded!', 'Fingerprint created. Registering on blockchain...', 'info');
                 }
-                
-                // Show register button
-                uploadBtn.style.display = 'none';
-                registerBtn.style.display = 'flex';
-                registerBtn.disabled = false;
-
-                setTimeout(() => {
-                    progressBar.style.display = 'none';
-                    progressFill.style.width = '0%';
-                }, 800);
+            } else {
+                throw new Error(data?.error || 'Failed to generate image fingerprint');
             }
         } catch (error) {
             console.error('uploadImage error:', error);
@@ -452,20 +475,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Register single image on blockchain
     async function registerOnBlockchain() {
+        if (!uploadedData || !uploadedData.image_hash) {
+            console.warn("No uploadedData to register");
+            return;
+        }
         console.log("Starting registerOnBlockchain for hash:", uploadedData.image_hash);
         try {
             progressBar.style.display = 'block';
-            progressFill.style.width = '50%';
+            progressFill.style.width = '80%';
 
-            const result = await API.registerOnBlockchain(
-                uploadedData.image_hash,
-                uploadedData.filename
-            );
+            let result;
+            try {
+                result = await API.registerOnBlockchain(
+                    uploadedData.image_hash,
+                    uploadedData.filename
+                );
+            } catch (err) {
+                if (err.status === 401 && typeof Auth !== 'undefined') {
+                    console.log("401 during registration, re-authenticating wallet session...");
+                    await Auth.loginWithWallet();
+                    result = await API.registerOnBlockchain(
+                        uploadedData.image_hash,
+                        uploadedData.filename
+                    );
+                } else {
+                    throw err;
+                }
+            }
+
             console.log("Blockchain register response:", result);
-
             progressFill.style.width = '100%';
 
-            if (result.success) {
+            if (result && result.success) {
                 if (result.warning) {
                     Utils.showToast('Re-registered!', result.warning, 'warning');
                 } else {
@@ -473,16 +514,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 const fullData = { ...uploadedData, ...result };
-                
+                uploadedData = fullData;
+
                 setTimeout(() => {
                     displayResult(fullData);
                     progressBar.style.display = 'none';
                     progressFill.style.width = '0%';
                 }, 500);
+            } else {
+                throw new Error(result?.error || 'Blockchain registration failed');
             }
         } catch (error) {
             console.error('registerOnBlockchain error:', error);
             progressBar.style.display = 'none';
+            // Show registerBtn so user can retry registration if desired
+            uploadBtn.style.display = 'none';
+            registerBtn.style.display = 'flex';
+            registerBtn.disabled = false;
             throw error;
         }
     }
@@ -502,7 +550,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const encrypt = encryptOption ? encryptOption.checked : false;
 
             // 1. Batch Upload
-            const upResult = await API.batchUpload(selectedBatchFiles, encrypt);
+            let upResult;
+            try {
+                upResult = await API.batchUpload(selectedBatchFiles, encrypt);
+            } catch (err) {
+                if (err.status === 401 && typeof Auth !== 'undefined') {
+                    await Auth.loginWithWallet();
+                    upResult = await API.batchUpload(selectedBatchFiles, encrypt);
+                } else {
+                    throw err;
+                }
+            }
+
             progressFill.style.width = '60%';
 
             if (!upResult.uploaded || upResult.uploaded.length === 0) {
@@ -518,7 +577,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 ipfsCID: item.ipfsCID || item.ipfs_cid || ''
             }));
 
-            const regResult = await API.batchRegister(regPayload);
+            let regResult;
+            try {
+                regResult = await API.batchRegister(regPayload);
+            } catch (err) {
+                if (err.status === 401 && typeof Auth !== 'undefined') {
+                    await Auth.loginWithWallet();
+                    regResult = await API.batchRegister(regPayload);
+                } else {
+                    throw err;
+                }
+            }
+
             progressFill.style.width = '100%';
 
             setTimeout(() => {
@@ -698,14 +768,23 @@ document.addEventListener('DOMContentLoaded', () => {
         resultCard.scrollIntoView({ behavior: 'smooth' });
     }
 
-    // Helper to generate certificate from certificate.js
+    // Helper to generate certificate from certificate.js with backend fallback
     function generateCertificate() {
         if (!uploadedData) return;
-        if (typeof CertificateGenerator !== 'undefined') {
-            CertificateGenerator.generateCertificate(uploadedData);
-        } else {
-            console.error('CertificateGenerator not loaded');
-            alert('Certificate generator library not loaded. Please refresh the page.');
+        const hash = uploadedData.image_hash || uploadedData.hash || '';
+        try {
+            if (typeof CertificateGenerator !== 'undefined' && typeof CertificateGenerator.downloadPDF === 'function') {
+                CertificateGenerator.downloadPDF(uploadedData);
+            } else if (hash) {
+                window.open(`${API_BASE}/api/certificate/${hash}`, '_blank');
+            } else {
+                alert('Certificate generator library not loaded. Please refresh the page.');
+            }
+        } catch (err) {
+            console.warn('Frontend certificate error, using backend download fallback:', err);
+            if (hash) {
+                window.open(`${API_BASE}/api/certificate/${hash}`, '_blank');
+            }
         }
     }
 });

@@ -39,7 +39,7 @@ class VercelPathMiddleware:
         req_uri = environ.get('RAW_URI') or environ.get('REQUEST_URI') or environ.get('HTTP_X_ORIGINAL_URI')
         if req_uri:
             parsed = urlparse(req_uri)
-            if parsed.path.startswith('/api'):
+            if parsed.path.startswith('/api') or parsed.path.startswith('/certificate'):
                 environ['PATH_INFO'] = parsed.path
         return self.wsgi_app(environ, start_response)
 

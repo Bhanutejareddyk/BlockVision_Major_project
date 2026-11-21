@@ -1,11 +1,14 @@
 import os
-from flask import Flask, send_from_directory, jsonify, request, g
+import io
+import traceback
+from flask import Flask, send_from_directory, jsonify, request, g, send_file, redirect
 from flask_cors import CORS
 from config import Config
 from routes.upload import upload_bp
 from routes.verify import verify_bp
 from routes.history import history_bp
 from utils.cleanup import FileCleanup
+from utils.certificate import generate_certificate_pdf, generate_certificate_html
 from utils.auth import (
     generate_nonce,
     get_expected_message,
@@ -43,6 +46,11 @@ def add_cors_headers(response):
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-User-Email, X-Owner-Email'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     return response
+
+@app.route('/api/<path:path>', methods=['OPTIONS'])
+def options_preflight(path):
+    """Handle all CORS preflight OPTIONS requests gracefully"""
+    return ('', 204)
 
 # Run cleanup on startup
 print(f"\n{'='*60}")
@@ -127,6 +135,62 @@ def request_entity_too_large(error):
 def internal_error(error):
     """Handle 500 errors"""
     return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.errorhandler(Exception)
+def handle_all_exceptions(e):
+    """Global exception handler to guarantee JSON response and log stack traces"""
+    traceback.print_exc()
+    code = getattr(e, 'code', 500)
+    return jsonify({
+        'success': False,
+        'error': str(e) or 'Internal Server Error'
+    }), code
+
+
+# Certificate Endpoints
+@app.route('/api/certificate/<image_hash>')
+def download_certificate_pdf(image_hash):
+    """
+    Public audit endpoint: Download vector PDF certificate for a registered image.
+    Works without login.
+    """
+    try:
+        clean_hash = (image_hash or '').strip().lower()
+        pdf_bytes, filename_or_err = generate_certificate_pdf(clean_hash)
+        if not pdf_bytes:
+            # Fallback: if reportlab missing or failed, redirect to HTML certificate
+            html_content = generate_certificate_html(clean_hash)
+            if html_content:
+                return redirect(f"/certificate/{clean_hash}")
+            return jsonify({'success': False, 'error': filename_or_err or 'Certificate not found'}), 404
+
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename_or_err
+        )
+    except Exception as e:
+        traceback.print_exc()
+        return redirect(f"/certificate/{image_hash}")
+
+
+@app.route('/certificate/<image_hash>')
+def view_certificate_html(image_hash):
+    """
+    Public audit endpoint: View printable HTML certificate for a registered image.
+    Works without login, with window.print() support.
+    """
+    try:
+        clean_hash = (image_hash or '').strip().lower()
+        html = generate_certificate_html(clean_hash)
+        if not html:
+            return jsonify({'success': False, 'error': 'Image certificate not found'}), 404
+        return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 # Health check endpoint

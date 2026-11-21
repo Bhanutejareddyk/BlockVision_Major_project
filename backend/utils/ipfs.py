@@ -53,7 +53,7 @@ def upload_to_ipfs(file_path):
             files = {
                 "file": (filename, f)
             }
-            response = requests.post(url, files=files, headers=headers, timeout=30)
+            response = requests.post(url, files=files, headers=headers, timeout=10)
 
         if response.status_code == 200:
             res_json = response.json()
@@ -65,8 +65,8 @@ def upload_to_ipfs(file_path):
             return ""
 
     except requests.exceptions.Timeout:
-        print("[IPFS] Pinata upload timed out after 30 seconds.")
+        print("[IPFS] Pinata upload timed out after 10 seconds. Continuing without blocking.")
         return ""
     except Exception as e:
-        print(f"[IPFS] Error uploading to Pinata: {str(e)}")
+        print(f"[IPFS] Error uploading to Pinata: {str(e)}. Continuing without blocking.")
         return ""

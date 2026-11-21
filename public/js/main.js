@@ -287,7 +287,10 @@ const API = {
             const data = await response.json();
             
             if (!response.ok) {
-                throw new Error(data.error || 'Upload failed');
+                const err = new Error(data.error || 'Upload failed');
+                err.status = response.status;
+                err.data = data;
+                throw err;
             }
 
             return data;

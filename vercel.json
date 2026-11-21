@@ -6,6 +6,7 @@
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "api/index.py" },
+    { "src": "/certificate/(.*)", "dest": "api/index.py" },
     { "src": "/upload", "dest": "/public/upload.html" },
     { "src": "/verify", "dest": "/public/verify.html" },
     { "src": "/history", "dest": "/public/history.html" },

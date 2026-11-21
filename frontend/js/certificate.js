@@ -6,6 +6,13 @@
 
 const CertificateGenerator = {
     /**
+     * Alias for generateCertificate to maintain full compatibility across pages
+     */
+    generateCertificate(data) {
+        return this.downloadPDF(data);
+    },
+
+    /**
      * Generate and download corporate vector PDF certificate
      * @param {Object} data Certificate data (filename, image_hash, transaction_hash, block_number, timestamp, isVerified, etc.)
      */
@@ -17,7 +24,15 @@ const CertificateGenerator = {
             return;
         }
 
+        const hash = data.image_hash || data.imageHash || data.hash || '';
+
         if (!window.jspdf || !window.jspdf.jsPDF) {
+            console.warn('jsPDF not loaded in browser, falling back to backend PDF endpoint');
+            if (hash) {
+                const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
+                window.open(`${apiBase}/api/certificate/${hash}`, '_blank');
+                return;
+            }
             alert('PDF library not loaded. Please refresh the page.');
             return;
         }
@@ -192,8 +207,8 @@ const CertificateGenerator = {
         doc.setFont('courier', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(...cNavy);
-        const hash = data.image_hash || 'N/A';
-        doc.text(hash, col1LabelX, rowY);
+        const displayHash = hash || data.image_hash || 'N/A';
+        doc.text(displayHash, col1LabelX, rowY);
 
         rowY += 6.5;
         doc.setFont('helvetica', 'bold');
@@ -405,7 +420,13 @@ const CertificateGenerator = {
 
             const prefix = isVerified ? 'verified_certificate' : 'unverified_audit_report';
             const shortHash = hash.substring(0, 8);
-            doc.save(`${prefix}_${shortHash}.pdf`);
+            try {
+                doc.save(`${prefix}_${shortHash}.pdf`);
+            } catch (saveErr) {
+                console.warn('doc.save failed, falling back to backend download:', saveErr);
+                const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
+                window.open(`${apiBase}/api/certificate/${hash}`, '_blank');
+            }
 
             if (typeof Utils !== 'undefined' && Utils.showToast) {
                 Utils.showToast(
@@ -797,4 +818,7 @@ const CertificateGenerator = {
 // Export to window
 if (typeof window !== 'undefined') {
     window.CertificateGenerator = CertificateGenerator;
+    window.printCertificateA4 = function(data) {
+        return CertificateGenerator.print(data);
+    };
 }

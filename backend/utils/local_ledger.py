@@ -20,7 +20,7 @@ GENESIS_HASH = '0' * 64
 
 
 def _ledger_path():
-    if os.environ.get('VERCEL') == '1':
+    if os.environ.get('VERCEL') or os.environ.get('VERCEL_ENV') or (os.name != 'nt' and os.path.exists('/tmp')):
         base = '/tmp/blockvision'
     else:
         base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')

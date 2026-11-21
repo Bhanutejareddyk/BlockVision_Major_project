@@ -155,16 +155,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Verify button (upload tab)
-    verifyBtn.addEventListener('click', async () => {
-        if (!selectedFile) return;
+    verifyBtn.addEventListener('click', async (e) => {
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        console.log("Verify clicked");
+        if (!selectedFile) {
+            alert("Please select an image first");
+            return;
+        }
         await verifyImage();
     });
 
     // Verify button (hash tab)
-    verifyHashBtn.addEventListener('click', async () => {
+    verifyHashBtn.addEventListener('click', async (e) => {
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        console.log("Verify hash clicked");
         const hash = hashInput.value.trim();
         if (hash.length === 64) {
             await verifyByHash(hash);
+        } else {
+            alert("Please enter a valid 64-character SHA-256 hash");
         }
     });
 
@@ -223,51 +232,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Verify image
     async function verifyImage() {
+        console.log("Starting verifyImage for:", selectedFile?.name);
+        verifyBtn.disabled = true;
+        const originalText = verifyBtn.querySelector('span') ? verifyBtn.querySelector('span').textContent : 'Verify';
+        if (verifyBtn.querySelector('span')) verifyBtn.querySelector('span').textContent = 'Verifying...';
+
         try {
-            verifyBtn.disabled = true;
             verifyProgressBar.style.display = 'block';
             verifyProgressFill.style.width = '50%';
 
             const notifyEmail = getNotifyEmail();
             const result = await API.verifyImage(selectedFile, notifyEmail);
+            console.log("Verify image response:", result);
             
             verifyProgressFill.style.width = '100%';
-
-            setTimeout(() => {
-                displayResult(result);
-                verifyProgressBar.style.display = 'none';
-                verifyProgressFill.style.width = '0%';
-            }, 400);
-
-        } catch (error) {
-            Utils.showToast('Verification Failed', error.message, 'error');
-            verifyBtn.disabled = false;
+            displayResult(result);
             verifyProgressBar.style.display = 'none';
+            verifyProgressFill.style.width = '0%';
+        } catch (error) {
+            console.error("verifyImage error:", error);
+            Utils.showToast('Verification Failed', error.message || 'Error verifying image', 'error');
+            verifyProgressBar.style.display = 'none';
+        } finally {
+            verifyBtn.disabled = false;
+            if (verifyBtn.querySelector('span')) verifyBtn.querySelector('span').textContent = originalText;
         }
     }
 
     // Verify by hash
     async function verifyByHash(hash) {
+        console.log("Starting verifyByHash for:", hash);
+        verifyHashBtn.disabled = true;
+        const originalText = verifyHashBtn.querySelector('span') ? verifyHashBtn.querySelector('span').textContent : 'Verify';
+        if (verifyHashBtn.querySelector('span')) verifyHashBtn.querySelector('span').textContent = 'Verifying...';
+
         try {
-            verifyHashBtn.disabled = true;
             verifyProgressBar.style.display = 'block';
             verifyProgressFill.style.width = '50%';
 
             const notifyEmail = getNotifyEmail();
             const result = await API.verifyHash(hash, notifyEmail);
+            console.log("Verify hash response:", result);
             
             verifyProgressFill.style.width = '100%';
-
-            setTimeout(() => {
-                displayResult(result);
-                verifyProgressBar.style.display = 'none';
-                verifyProgressFill.style.width = '0%';
-            }, 400);
-
-        } catch (error) {
-            Utils.showToast('Verification Failed', error.message, 'error');
-            verifyHashBtn.disabled = false;
+            displayResult(result);
             verifyProgressBar.style.display = 'none';
+            verifyProgressFill.style.width = '0%';
+        } catch (error) {
+            console.error("verifyByHash error:", error);
+            Utils.showToast('Verification Failed', error.message || 'Error verifying hash', 'error');
+            verifyProgressBar.style.display = 'none';
+        } finally {
+            verifyHashBtn.disabled = false;
+            if (verifyHashBtn.querySelector('span')) verifyHashBtn.querySelector('span').textContent = originalText;
         }
     }
 
@@ -589,22 +606,51 @@ document.addEventListener('DOMContentLoaded', () => {
     // Certificate download & print event listeners
     if (downloadVerifyCertBtn) {
         downloadVerifyCertBtn.addEventListener('click', () => {
-            if (lastVerificationResult && typeof CertificateGenerator !== 'undefined') {
-                CertificateGenerator.downloadPDF({
-                    ...lastVerificationResult,
-                    isVerified: !!(lastVerificationResult.verified && lastVerificationResult.authentic)
-                });
+            console.log("Download Verify Certificate clicked");
+            if (lastVerificationResult) {
+                const hash = lastVerificationResult.image_hash || lastVerificationResult.hash || '';
+                try {
+                    if (typeof CertificateGenerator !== 'undefined' && typeof CertificateGenerator.downloadPDF === 'function') {
+                        CertificateGenerator.downloadPDF({
+                            ...lastVerificationResult,
+                            isVerified: !!(lastVerificationResult.verified && lastVerificationResult.authentic)
+                        });
+                    } else if (hash) {
+                        const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
+                        window.open(`${apiBase}/api/certificate/${hash}`, '_blank');
+                    }
+                } catch (err) {
+                    console.warn("Verify cert download error, using backend:", err);
+                    if (hash) {
+                        const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
+                        window.open(`${apiBase}/api/certificate/${hash}`, '_blank');
+                    }
+                }
             }
         });
     }
 
     if (printVerifyCertBtn) {
         printVerifyCertBtn.addEventListener('click', () => {
-            if (lastVerificationResult && typeof CertificateGenerator !== 'undefined') {
-                CertificateGenerator.print({
-                    ...lastVerificationResult,
-                    isVerified: !!(lastVerificationResult.verified && lastVerificationResult.authentic)
-                });
+            console.log("Print Verify Certificate clicked");
+            if (lastVerificationResult) {
+                const hash = lastVerificationResult.image_hash || lastVerificationResult.hash || '';
+                try {
+                    if (typeof CertificateGenerator !== 'undefined' && typeof CertificateGenerator.print === 'function') {
+                        CertificateGenerator.print({
+                            ...lastVerificationResult,
+                            isVerified: !!(lastVerificationResult.verified && lastVerificationResult.authentic)
+                        });
+                    } else if (hash) {
+                        const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
+                        window.open(`${apiBase}/certificate/${hash}`, '_blank');
+                    }
+                } catch (err) {
+                    if (hash) {
+                        const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
+                        window.open(`${apiBase}/certificate/${hash}`, '_blank');
+                    }
+                }
             }
         });
     }

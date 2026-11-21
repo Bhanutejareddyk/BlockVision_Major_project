@@ -121,12 +121,16 @@ def upload_image():
     """Handle image upload and hash calculation for authenticated user"""
     try:
         file = None
-        if 'image' in request.files:
-            file = request.files['image']
-        elif 'images' in request.files:
-            files_list = request.files.getlist('images')
-            if files_list:
-                file = files_list[0]
+        for key in ['image', 'images', 'file']:
+            if key in request.files:
+                file_obj = request.files[key]
+                if key == 'images':
+                    fl = request.files.getlist('images')
+                    if fl:
+                        file_obj = fl[0]
+                if file_obj and file_obj.filename:
+                    file = file_obj
+                    break
 
         if not file or file.filename == '':
             return jsonify({'error': 'No image file provided'}), 400
@@ -284,11 +288,11 @@ def batch_register():
 def register_on_blockchain():
     """Register image hash on blockchain with IPFS CID under user's wallet address"""
     try:
-        data = request.get_json(silent=True)
-        if not data or 'image_hash' not in data:
+        data = request.get_json(silent=True) or {}
+        image_hash = (data.get('image_hash') or data.get('imageHash') or data.get('hash') or '').strip().lower()
+        if not image_hash:
             return jsonify({'error': 'Image hash is required'}), 400
 
-        image_hash = data['image_hash'].strip()
         filename = data.get('filename', 'unknown.jpg')
         ipfs_cid = data.get('ipfs_cid') or data.get('ipfsCID') or ''
 
@@ -306,6 +310,16 @@ def register_on_blockchain():
 
         blockchain = get_blockchain()
         details = blockchain.get_image_details(image_hash)
+        if not details.get('exists'):
+            try:
+                from utils.local_ledger import LocalLedger
+                local = LocalLedger()
+                loc_det = local.get_image_details(image_hash)
+                if loc_det.get('exists'):
+                    details = loc_det
+            except Exception:
+                pass
+
         is_re_register = False
 
         if details.get('exists'):

@@ -269,6 +269,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <button class="btn-action" onclick="window.viewDetails('${img.image_hash}')">
                             View
                         </button>
+                        <button class="btn-action btn-cert" onclick="window.downloadCertificate('${img.image_hash}')" title="Download Certificate PDF">
+                            Certificate
+                        </button>
                         <button class="btn-action" onclick="window.copyHash('${img.image_hash}')">
                             Copy
                         </button>
@@ -410,22 +413,50 @@ document.addEventListener('DOMContentLoaded', async () => {
                         : '<span class="status-badge verified">Verified on blockchain (Active)</span>'}
                 </div>
             </div>
-            <div class="modal-detail-item" style="margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border-color);">
-                <div class="modal-detail-label">Watermarked Asset</div>
-                <div class="modal-detail-value">
-                    <a href="${(typeof getApiBase === 'function' ? getApiBase() : '')}${image.watermarkedUrl || `/api/image/${image.image_hash}_robust.png`}" 
-                       target="_blank" 
-                       download="${image.image_hash || 'image'}_robust.png" 
-                       class="btn btn-secondary" 
-                       style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 13px; text-decoration: none;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        Download Watermarked Copy
-                    </a>
-                </div>
+            <div class="modal-detail-item" style="margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border-color); display: flex; gap: 10px; flex-wrap: wrap;">
+                <button type="button" 
+                        onclick="window.downloadCertificate('${image.image_hash}')" 
+                        class="btn btn-primary" 
+                        style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 13px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download Certificate (PDF)
+                </button>
+                <a href="${(typeof getApiBase === 'function' ? getApiBase() : '')}${image.watermarkedUrl || `/api/image/${image.image_hash}_robust.png`}" 
+                   target="_blank" 
+                   download="${image.image_hash || 'image'}_robust.png" 
+                   class="btn btn-secondary" 
+                   style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 13px; text-decoration: none;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download Watermarked Copy
+                </a>
             </div>
         `;
         
         detailModal.classList.add('show');
+    };
+
+    // Download Certificate (global function)
+    window.downloadCertificate = function(imageHash) {
+        console.log("Certificate clicked for hash:", imageHash);
+        const img = allImages.find(i => i.image_hash === imageHash);
+        const isRevoked = img ? Boolean(img.isRevoked) : false;
+        const certData = {
+            ...(img || { image_hash: imageHash }),
+            isVerified: !isRevoked,
+            isRevoked: isRevoked
+        };
+        try {
+            if (typeof CertificateGenerator !== 'undefined' && typeof CertificateGenerator.downloadPDF === 'function') {
+                CertificateGenerator.downloadPDF(certData);
+            } else {
+                const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
+                window.open(`${apiBase}/api/certificate/${imageHash}`, '_blank');
+            }
+        } catch (err) {
+            console.warn("History cert download error, using backend:", err);
+            const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
+            window.open(`${apiBase}/api/certificate/${imageHash}`, '_blank');
+        }
     };
 
     // Copy hash (global function)
