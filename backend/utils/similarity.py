@@ -68,7 +68,7 @@ def scan_stored_images_for_near_duplicates(
     extensions = ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp')
 
     for fname in os.listdir(upload_dir):
-        if fname.startswith('temp_') or fname.startswith('diff_') or '_watermarked' in fname:
+        if fname.startswith('temp_') or fname.startswith('diff_') or '_watermarked' in fname or '_robust' in fname:
             continue
         
         base_name, ext = os.path.splitext(fname)

@@ -185,12 +185,25 @@ def register_on_blockchain():
 
         if result['status'] == 'success':
             tx_hash = result['transaction_hash']
-            # Optional watermark embedding on the stored image
-            for ext in ['.png', '.jpg', '.jpeg']:
+
+            # Call both: a) LSB watermark for backward compat, b) robust diagonal watermark
+            for ext in ['.png', '.jpg', '.jpeg', '.webp', '.bmp']:
                 target = os.path.join(Config.UPLOAD_FOLDER, f"{image_hash}{ext}")
                 if os.path.exists(target):
-                    wm_path = os.path.join(Config.UPLOAD_FOLDER, f"{image_hash}_watermarked.png")
-                    SteganographyHandler.embed_watermark(target, wm_path, f"tx:{tx_hash}")
+                    try:
+                        wm_path = os.path.join(Config.UPLOAD_FOLDER, f"{image_hash}_watermarked.png")
+                        SteganographyHandler.embed_watermark(target, wm_path, f"tx:{tx_hash}")
+                    except Exception as wm_err:
+                        print(f"[WATERMARK WARNING] LSB watermark failed: {wm_err}")
+
+                    try:
+                        short_wallet = f"{user_wallet[:6]}...{user_wallet[-4:]}" if len(user_wallet) > 10 else user_wallet
+                        short_hash = image_hash[:8]
+                        robust_text = f"BlockVision • {short_wallet} • {short_hash}"
+                        robust_path = os.path.join(Config.UPLOAD_FOLDER, f"{image_hash}_robust.png")
+                        SteganographyHandler.embed_robust_watermark(target, robust_path, robust_text)
+                    except Exception as rob_err:
+                        print(f"[WATERMARK WARNING] Robust watermark failed: {rob_err}")
                     break
 
             msg = 'Image successfully registered on blockchain'
@@ -207,6 +220,8 @@ def register_on_blockchain():
                 'owner': user_wallet,
                 'ipfsCID': ipfs_cid,
                 'ipfsUrl': get_ipfs_url(ipfs_cid) if ipfs_cid else "",
+                'watermarkedUrl': f"/api/image/{image_hash}_robust.png",
+                'watermarkType': "visible + LSB",
                 'timestamp': datetime.now().isoformat(),
                 'isRevoked': False
             }
@@ -271,12 +286,24 @@ def upload_and_register():
 
         tx_hash = reg_result['transaction_hash']
         
-        # Embed transaction watermark invisibly
-        for ext in ['.png', '.jpg', '.jpeg']:
+        # Call both: a) LSB watermark for backward compat, b) robust diagonal watermark
+        for ext in ['.png', '.jpg', '.jpeg', '.webp', '.bmp']:
             target = os.path.join(Config.UPLOAD_FOLDER, f"{image_hash}{ext}")
             if os.path.exists(target):
-                wm_path = os.path.join(Config.UPLOAD_FOLDER, f"{image_hash}_watermarked.png")
-                SteganographyHandler.embed_watermark(target, wm_path, f"tx:{tx_hash}")
+                try:
+                    wm_path = os.path.join(Config.UPLOAD_FOLDER, f"{image_hash}_watermarked.png")
+                    SteganographyHandler.embed_watermark(target, wm_path, f"tx:{tx_hash}")
+                except Exception as wm_err:
+                    print(f"[WATERMARK WARNING] LSB watermark failed: {wm_err}")
+
+                try:
+                    short_wallet = f"{user_wallet[:6]}...{user_wallet[-4:]}" if len(user_wallet) > 10 else user_wallet
+                    short_hash = image_hash[:8]
+                    robust_text = f"BlockVision • {short_wallet} • {short_hash}"
+                    robust_path = os.path.join(Config.UPLOAD_FOLDER, f"{image_hash}_robust.png")
+                    SteganographyHandler.embed_robust_watermark(target, robust_path, robust_text)
+                except Exception as rob_err:
+                    print(f"[WATERMARK WARNING] Robust watermark failed: {rob_err}")
                 break
 
         msg = 'Image uploaded and registered successfully on blockchain.'
@@ -291,6 +318,8 @@ def upload_and_register():
             'gas_used': reg_result['gas_used'],
             'ipfsCID': ipfs_cid,
             'ipfsUrl': get_ipfs_url(ipfs_cid) if ipfs_cid else "",
+            'watermarkedUrl': f"/api/image/{image_hash}_robust.png",
+            'watermarkType': "visible + LSB",
             'message': msg,
             'isRevoked': False
         }

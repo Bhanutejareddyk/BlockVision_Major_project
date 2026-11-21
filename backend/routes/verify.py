@@ -9,6 +9,7 @@ from utils.hashing import (
     calculate_perceptual_similarity,
     generate_tamper_diff_image
 )
+from utils.similarity import scan_stored_images_for_near_duplicates
 from utils.image_handler import ImageHandler
 from utils.steganography import SteganographyHandler
 from utils.blockchain import get_blockchain
@@ -50,8 +51,11 @@ def verify_image():
             perceptual_hash = calculate_dhash(temp_path)
             image_info = ImageHandler.get_image_info(temp_path)
             
-            # Check for steganographic watermark
+            # Check for steganographic and robust watermark
             has_wm, wm_data = SteganographyHandler.extract_watermark(temp_path)
+            has_robust_wm = SteganographyHandler.verify_watermark_robust(temp_path)
+            watermark_detected = bool(has_wm or has_robust_wm)
+            wm_type = "LSB Steganography" if has_wm else ("Robust Watermark" if has_robust_wm else "None")
             
             blockchain = get_blockchain()
             image_details = blockchain.get_image_details(image_hash)
@@ -80,7 +84,8 @@ def verify_image():
                         'format': image_info.get('format', 'Unknown'),
                         'ipfsCID': cid,
                         'ipfsUrl': get_ipfs_url(cid) if cid else "",
-                        'watermark_detected': has_wm,
+                        'watermark_detected': watermark_detected,
+                        'watermark_type': wm_type,
                         'embedded_watermark': wm_data if has_wm else None
                     }), 200
 
@@ -90,6 +95,9 @@ def verify_image():
                     'authentic': True,
                     'status': 'VERIFIED',
                     'isRevoked': False,
+                    'similarity': '100%',
+                    'visual_similarity_percent': 100.0,
+                    'similarity_score': 100.0,
                     'message': 'Image is verified and authentic (100% cryptographic match)',
                     'image_hash': image_hash,
                     'perceptual_hash': perceptual_hash,
@@ -103,16 +111,86 @@ def verify_image():
                     'format': image_info.get('format', 'Unknown'),
                     'ipfsCID': cid,
                     'ipfsUrl': get_ipfs_url(cid) if cid else "",
-                    'watermark_detected': has_wm,
+                    'watermark_detected': watermark_detected,
+                    'watermark_type': wm_type,
                     'embedded_watermark': wm_data if has_wm else None
                 }), 200
             else:
+                # Hash not found exactly on blockchain: Check for tampering against registered images using perceptual similarity
+                near_matches = scan_stored_images_for_near_duplicates(perceptual_hash, exclude_sha256=image_hash, blockchain=blockchain)
+                best_match = None
+                best_similarity = 0.0
+                best_orig_path = None
+
+                for candidate in near_matches:
+                    cand_hash = candidate.get('similarTo')
+                    sim_score = candidate.get('similarity_score', 0)
+                    if sim_score >= 85.0:
+                        cand_details = blockchain.get_image_details(cand_hash)
+                        if cand_details.get('exists') and not cand_details.get('isRevoked', False):
+                            best_match = candidate
+                            best_similarity = sim_score
+                            best_match['existingOwner'] = cand_details.get('owner', 'Unknown')
+                            best_match['filename'] = cand_details.get('file_name', '')
+                            for ext in ['.png', '.jpg', '.jpeg', '.webp', '.bmp']:
+                                cand_path = os.path.join(Config.UPLOAD_FOLDER, f"{cand_hash}{ext}")
+                                if os.path.exists(cand_path):
+                                    best_orig_path = cand_path
+                                    break
+                            break
+
+                if best_match and best_similarity >= 85.0:
+                    # Generate visual difference heatmap if original file exists on disk
+                    diff_image_url = None
+                    if best_orig_path:
+                        try:
+                            diff_filename = f"diff_{unique_id}_{safe_name}"
+                            if not diff_filename.lower().endswith('.png'):
+                                diff_filename += '.png'
+                            diff_out_path = os.path.join(Config.UPLOAD_FOLDER, diff_filename)
+                            ok, res_path = generate_tamper_diff_image(best_orig_path, temp_path, diff_out_path)
+                            if ok:
+                                diff_image_url = f"/api/image/{diff_filename}"
+                        except Exception as d_err:
+                            print(f"[TAMPER HEATMAP ERROR] {d_err}")
+
+                    sim_rounded = round(best_similarity, 1)
+                    return jsonify({
+                        'success': True,
+                        'verified': False,
+                        'authentic': False,
+                        'tampered': True,
+                        'status': 'SIMILAR - POSSIBLE TAMPERED COPY',
+                        'isRevoked': False,
+                        'similarity': f"{sim_rounded}%",
+                        'visual_similarity_percent': sim_rounded,
+                        'similarity_score': sim_rounded,
+                        'message': f"Image looks {sim_rounded}% similar to registered image - May be cropped / compressed / tampered.",
+                        'image_hash': image_hash,
+                        'perceptual_hash': perceptual_hash,
+                        'original_hash': best_match.get('similarTo', ''),
+                        'original_owner': best_match.get('existingOwner', 'Unknown'),
+                        'original_filename': best_match.get('filename', ''),
+                        'uploaded_filename': file.filename,
+                        'file_size': image_info.get('file_size', 0),
+                        'dimensions': f"{image_info.get('width', 0)}x{image_info.get('height', 0)}",
+                        'format': image_info.get('format', 'Unknown'),
+                        'diff_heatmap_url': diff_image_url,
+                        'heatmap_url': diff_image_url,
+                        'heatmap_available': diff_image_url is not None,
+                        'watermark_detected': watermark_detected,
+                        'watermark_type': wm_type,
+                        'embedded_watermark': wm_data if has_wm else None
+                    }), 200
+
                 return jsonify({
                     'success': True,
                     'verified': False,
                     'authentic': False,
                     'status': 'NOT_FOUND',
                     'isRevoked': False,
+                    'similarity': '0%',
+                    'visual_similarity_percent': 0.0,
                     'message': 'Image not found on blockchain. This image is not registered.',
                     'image_hash': image_hash,
                     'perceptual_hash': perceptual_hash,
@@ -120,7 +198,8 @@ def verify_image():
                     'file_size': image_info.get('file_size', 0),
                     'dimensions': f"{image_info.get('width', 0)}x{image_info.get('height', 0)}",
                     'format': image_info.get('format', 'Unknown'),
-                    'watermark_detected': has_wm,
+                    'watermark_detected': watermark_detected,
+                    'watermark_type': wm_type,
                     'embedded_watermark': wm_data if has_wm else None
                 }), 200
 

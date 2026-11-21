@@ -143,3 +143,24 @@ class ImageHandler:
         except Exception as e:
             print(f"Error cleaning up file {file_path}: {e}")
         return False
+
+    @staticmethod
+    def get_watermarked_path(image_hash):
+        """Returns path to <hash>_robust.png if exists else None"""
+        try:
+            from config import Config
+            robust_path = os.path.join(Config.UPLOAD_FOLDER, f"{image_hash}_robust.png")
+            if os.path.exists(robust_path):
+                return robust_path
+            # Fallback to _watermarked.png
+            wm_path = os.path.join(Config.UPLOAD_FOLDER, f"{image_hash}_watermarked.png")
+            if os.path.exists(wm_path):
+                return wm_path
+            return None
+        except Exception:
+            return None
+
+
+def get_watermarked_path(image_hash):
+    """Top-level helper returning path to <hash>_robust.png if exists else None"""
+    return ImageHandler.get_watermarked_path(image_hash)

@@ -388,6 +388,39 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
+        // Upgrade #6: Display watermarked copy section
+        const watermarkedUrl = data.watermarkedUrl || `/api/image/${data.image_hash}_robust.png`;
+        const existingWmSection = document.getElementById('watermarkedSection');
+        if (existingWmSection) existingWmSection.remove();
+
+        const wmSection = document.createElement('div');
+        wmSection.id = 'watermarkedSection';
+        wmSection.style.cssText = 'margin-top: 20px; padding: 16px; border-radius: 8px; border: 1px solid var(--border-color, #e2e8f0); background: var(--card-bg, #f8fafc);';
+        const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
+        wmSection.innerHTML = `
+            <h4 style="margin: 0 0 10px 0; color: var(--text-primary); font-size: 15px; font-weight: 600;">Watermarked Copy:</h4>
+            <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+                <img src="${apiBase}${watermarkedUrl}" 
+                     alt="Watermarked Preview" 
+                     style="width: 88px; height: 88px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1); background: #ffffff;"
+                     onerror="this.style.display='none'">
+                <div style="flex: 1; min-width: 220px;">
+                    <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text-secondary, #475569);">
+                        This copy has visible BlockVision watermark. Original without watermark is on IPFS.
+                    </p>
+                    <a href="${apiBase}${watermarkedUrl}" 
+                       download="${data.image_hash || 'image'}_robust.png" 
+                       target="_blank" 
+                       class="btn btn-secondary" 
+                       style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 13px; text-decoration: none;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download Watermarked Copy (.png)
+                    </a>
+                </div>
+            </div>
+        `;
+        resultDetails.parentNode.insertBefore(wmSection, resultDetails.nextSibling);
+
         resultCard.style.display = 'block';
         resultCard.scrollIntoView({ behavior: 'smooth' });
     }

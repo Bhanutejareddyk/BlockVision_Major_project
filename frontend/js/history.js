@@ -371,6 +371,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                         : '<span class="status-badge verified">Verified on blockchain (Active)</span>'}
                 </div>
             </div>
+            <div class="modal-detail-item" style="margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border-color);">
+                <div class="modal-detail-label">Watermarked Asset</div>
+                <div class="modal-detail-value">
+                    <a href="${(typeof getApiBase === 'function' ? getApiBase() : '')}${image.watermarkedUrl || `/api/image/${image.image_hash}_robust.png`}" 
+                       target="_blank" 
+                       download="${image.image_hash || 'image'}_robust.png" 
+                       class="btn btn-secondary" 
+                       style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 13px; text-decoration: none;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download Watermarked Copy
+                    </a>
+                </div>
+            </div>
         `;
         
         detailModal.classList.add('show');

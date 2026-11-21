@@ -184,9 +184,15 @@ def auth_me():
 # Serve uploaded images by hash
 @app.route('/api/image/<image_hash>')
 def serve_image(image_hash):
-    """Serve uploaded images by hash"""
+    """Serve uploaded images by hash or exact filename"""
     try:
         upload_dir = Config.UPLOAD_FOLDER
+
+        # Check direct filename if exact match exists in upload_dir
+        direct_path = os.path.join(upload_dir, image_hash)
+        if os.path.exists(direct_path) and os.path.isfile(direct_path):
+            return send_from_directory(upload_dir, image_hash)
+        
         extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
         
         # Check standard extensions

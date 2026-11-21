@@ -252,6 +252,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Display result
     function displayResult(data) {
         const isRevoked = data.status === 'REVOKED' || Boolean(data.isRevoked);
+        const isSimilar = data.status === 'SIMILAR - POSSIBLE TAMPERED COPY' || 
+                          data.status === 'SIMILAR' || 
+                          (Boolean(data.tampered) && (data.visual_similarity_percent >= 85 || data.similarity_score >= 85));
 
         if (isRevoked) {
             // Image is REVOKED
@@ -305,10 +308,89 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `).join('');
 
+        } else if (isSimilar) {
+            // Upgrade #6: SIMILAR / POSSIBLE TAMPERED COPY
+            verifyResultTitle.textContent = 'Possible Tampered Copy Detected';
+            const simPct = data.similarity || (data.visual_similarity_percent ? `${data.visual_similarity_percent}%` : '85%+');
+            const origHash = data.original_hash || 'N/A';
+
+            verifyResultMessage.innerHTML = `
+                <div style="background: rgba(234, 179, 8, 0.15); border: 1px solid #eab308; border-radius: 8px; padding: 12px 16px; margin: 8px 0; color: #854d0e; text-align: left;">
+                    <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">
+                        âš  Warning: Image looks ${simPct} similar to registered image - May be cropped / compressed / tampered.
+                    </div>
+                    <div style="font-size: 12.5px; word-break: break-all;">
+                        Original hash: <span style="font-family: monospace; font-weight: 600;">${origHash}</span>
+                    </div>
+                </div>
+            `;
+
+            verifyResultIcon.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="#eab308" width="32" height="32">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke-width="2"/>
+                    <line x1="12" y1="9" x2="12" y2="13" stroke-width="2"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17" stroke-width="2"/>
+                </svg>
+            `;
+            verifyResultIcon.classList.remove('success', 'error');
+
+            const details = [
+                { 
+                    label: 'Status', 
+                    value: `<span class="status-badge" style="background: rgba(234, 179, 8, 0.2); color: #ca8a04; border: 1px solid #eab308; font-weight: 700;">SIMILAR (${simPct})</span>` 
+                },
+                { label: 'Visual Similarity', value: `<strong style="color: #ca8a04;">${simPct}</strong>` },
+                { label: 'Original Hash (Registered)', value: origHash, class: 'hash' },
+                { 
+                    label: 'Original Registered Owner', 
+                    value: (data.original_owner && data.original_owner.startsWith('0x'))
+                        ? `<a href="https://sepolia.etherscan.io/address/${data.original_owner}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline;">${data.original_owner}</a>` 
+                        : (data.original_owner || 'Registered User'),
+                    class: 'hash'
+                },
+                { label: 'Uploaded File Hash (SHA-256)', value: data.image_hash, class: 'hash' },
+                { 
+                    label: 'Watermark', 
+                    value: data.watermark_detected 
+                        ? '<span class="status-badge verified" style="font-size:0.75rem;">Present</span>' 
+                        : '<span style="color: var(--text-muted);">Not Detected</span>' 
+                }
+            ];
+
+            if (data.uploaded_filename) {
+                details.push({ label: 'Uploaded Filename', value: data.uploaded_filename });
+            }
+
+            const heatmapUrl = data.diff_heatmap_url || data.heatmap_url;
+            let heatmapHtml = '';
+            if (heatmapUrl) {
+                const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
+                heatmapHtml = `
+                    <div style="margin-top: 18px; padding: 14px; border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px; background: var(--card-bg, #f8fafc); text-align: center;">
+                        <h4 style="margin: 0 0 6px 0; font-size: 14px; color: var(--text-primary, #0f172a);">Visual Tamper Difference Heatmap</h4>
+                        <p style="font-size: 12px; color: #dc2626; font-weight: 600; margin: 0 0 10px 0;">Red areas = Changed pixels</p>
+                        <img src="${apiBase}${heatmapUrl}" 
+                             alt="Tamper Difference Heatmap" 
+                             style="max-width: 100%; max-height: 280px; object-fit: contain; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff;">
+                    </div>
+                `;
+            }
+
+            verifyResultDetails.innerHTML = details.map(detail => `
+                <div class="detail-item">
+                    <span class="detail-label">${detail.label}</span>
+                    <span class="detail-value ${detail.class || ''}">${detail.value}</span>
+                </div>
+            `).join('') + heatmapHtml;
+
         } else if (data.verified && data.authentic) {
             // Image is verified
             verifyResultTitle.textContent = 'Verified & Authentic';
-            verifyResultMessage.textContent = 'This image is registered on the blockchain with cryptographic authenticity';
+            verifyResultMessage.innerHTML = `
+                <div style="background: rgba(34, 197, 94, 0.12); border: 1px solid #22c55e; border-radius: 8px; padding: 10px 14px; margin: 8px 0; color: #15803d; font-weight: 600; font-size: 13.5px;">
+                    âœ“ 100% Cryptographic Match - Image verified and authentic on blockchain
+                </div>
+            `;
             
             verifyResultIcon.innerHTML = `
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -320,7 +402,13 @@ document.addEventListener('DOMContentLoaded', () => {
             verifyResultIcon.classList.add('success');
 
             const details = [
-                { label: 'Status', value: '<span class="status-badge verified">Verified</span>' },
+                { label: 'Status', value: '<span class="status-badge verified">Verified (100% Match)</span>' },
+                { 
+                    label: 'Watermark', 
+                    value: data.watermark_detected 
+                        ? '<span class="status-badge verified" style="font-size:0.75rem;">Present</span>' 
+                        : '<span style="color: var(--text-muted);">Not Detected</span>' 
+                },
                 { label: 'Image Hash (SHA-256)', value: data.image_hash, class: 'hash' },
                 { 
                     label: 'Owner Address', 
@@ -341,10 +429,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            if (data.watermark_detected) {
+            if (data.watermark_detected && data.embedded_watermark) {
                 details.push({
-                    label: 'Steganographic Watermark',
-                    value: `<span class="status-badge verified" style="font-size:0.75rem;">Embedded: ${data.embedded_watermark || 'tx_hash'}</span>`
+                    label: 'Embedded Watermark',
+                    value: `<span class="status-badge verified" style="font-size:0.75rem;">${data.embedded_watermark}</span>`
                 });
             }
 
