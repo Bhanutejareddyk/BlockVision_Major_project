@@ -31,6 +31,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let selectedFile = null;
     let currentTab = 'upload';
+    let lastVerificationResult = null;
+
+    const downloadVerifyCertBtn = document.getElementById('downloadVerifyCertificate');
+    const printVerifyCertBtn = document.getElementById('printVerifyCertificate');
+    const downloadCertBtnText = document.getElementById('downloadCertBtnText');
 
     // Tab switching
     tabButtons.forEach(btn => {
@@ -184,6 +189,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         verifyProgressBar.style.display = 'none';
         verifyResultCard.style.display = 'none';
+        if (downloadVerifyCertBtn) downloadVerifyCertBtn.style.display = 'none';
+        if (printVerifyCertBtn) printVerifyCertBtn.style.display = 'none';
+        lastVerificationResult = null;
     }
 
     // Verify image
@@ -354,7 +362,46 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
+        // Store verification result and show certificate buttons
+        lastVerificationResult = data;
+        const isAuthentic = !!(data.verified && data.authentic);
+
+        if (downloadVerifyCertBtn) {
+            downloadVerifyCertBtn.style.display = 'inline-flex';
+            if (downloadCertBtnText) {
+                downloadCertBtnText.textContent = isAuthentic 
+                    ? 'Download Certificate (PDF)' 
+                    : 'Download Audit Report (PDF)';
+            }
+        }
+        if (printVerifyCertBtn) {
+            printVerifyCertBtn.style.display = 'inline-flex';
+        }
+
         verifyResultCard.style.display = 'block';
         verifyResultCard.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Certificate download & print event listeners
+    if (downloadVerifyCertBtn) {
+        downloadVerifyCertBtn.addEventListener('click', () => {
+            if (lastVerificationResult && typeof CertificateGenerator !== 'undefined') {
+                CertificateGenerator.downloadPDF({
+                    ...lastVerificationResult,
+                    isVerified: !!(lastVerificationResult.verified && lastVerificationResult.authentic)
+                });
+            }
+        });
+    }
+
+    if (printVerifyCertBtn) {
+        printVerifyCertBtn.addEventListener('click', () => {
+            if (lastVerificationResult && typeof CertificateGenerator !== 'undefined') {
+                CertificateGenerator.print({
+                    ...lastVerificationResult,
+                    isVerified: !!(lastVerificationResult.verified && lastVerificationResult.authentic)
+                });
+            }
+        });
     }
 });
