@@ -71,9 +71,10 @@ class Config(metaclass=ConfigMeta):
     FLASK_ENV = os.getenv('FLASK_ENV', 'development')
     
     # Upload Configuration
-    UPLOAD_FOLDER = '/tmp/uploads' if os.environ.get('VERCEL') == '1' else os.path.join(BACKEND_DIR, os.getenv('UPLOAD_FOLDER', 'uploads'))
-    ENCRYPTED_FOLDER = '/tmp/encrypted' if os.environ.get('VERCEL') == '1' else os.path.join(BACKEND_DIR, os.getenv('ENCRYPTED_FOLDER', 'encrypted'))
-    KEYS_FOLDER = '/tmp/keys' if os.environ.get('VERCEL') == '1' else os.path.join(BACKEND_DIR, os.getenv('KEYS_FOLDER', 'keys'))
+    is_vercel = os.getenv('VERCEL') == '1' or os.path.exists('/tmp')
+    UPLOAD_FOLDER = '/tmp/uploads' if is_vercel else os.path.join(BACKEND_DIR, os.getenv('UPLOAD_FOLDER', 'uploads'))
+    ENCRYPTED_FOLDER = '/tmp/encrypted' if is_vercel else os.path.join(BACKEND_DIR, os.getenv('ENCRYPTED_FOLDER', 'encrypted'))
+    KEYS_FOLDER = '/tmp/keys' if is_vercel else os.path.join(BACKEND_DIR, os.getenv('KEYS_FOLDER', 'keys'))
     MAX_FILE_SIZE = int(os.getenv('MAX_FILE_SIZE', 16777216))  # 16MB
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
     

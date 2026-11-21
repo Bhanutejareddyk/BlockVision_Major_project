@@ -236,7 +236,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <tr class="${isRevoked ? 'revoked-row' : ''}">
                 <td>
                     <div class="image-thumbnail">
-                        <img src="/api/image/${img.image_hash}" 
+                        <img src="${(typeof getApiBase === 'function' ? getApiBase() : '')}/api/image/${img.image_hash}" 
                              alt="${img.filename}" 
                              loading="lazy"
                              onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22%3E%3Crect fill=%22%23e8e8ed%22 width=%2248%22 height=%2248%22/%3E%3C/svg%3E'">

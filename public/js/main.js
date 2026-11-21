@@ -1,8 +1,22 @@
 // Main JavaScript for BlockVision
 // Handles global functionality and API calls
 
+// Global helper to get the API base URL
+function getApiBase() {
+    if (typeof CONFIG !== 'undefined' && typeof CONFIG.API_BASE === 'string') {
+        if (CONFIG.API_BASE !== '') return CONFIG.API_BASE;
+    }
+    const origin = window.location.origin || '';
+    if (origin.includes(':3000') || origin.includes(':5500') || origin.includes(':8080') || origin.startsWith('file:')) {
+        return 'http://127.0.0.1:5000';
+    }
+    // Same-origin (Vercel production or local Flask on :5000)
+    return '';
+}
+window.getApiBase = getApiBase;
+
 // API Base URL
-const API_BASE_URL = window.location.origin;
+const API_BASE_URL = getApiBase();
 
 // Utility Functions
 const Utils = {
@@ -124,7 +138,7 @@ const API = {
     // Fetch blockchain stats
     async getStats() {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/stats`);
+            const response = await fetch(getApiBase() + '/api/stats');
             const data = await response.json();
             return data;
         } catch (error) {
@@ -142,7 +156,7 @@ const API = {
 
             const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
 
-            const response = await fetch(`${API_BASE_URL}/api/upload`, {
+            const response = await fetch(getApiBase() + '/api/upload', {
                 method: 'POST',
                 headers: authHeaders,
                 body: formData
@@ -166,7 +180,7 @@ const API = {
         try {
             const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
 
-            const response = await fetch(`${API_BASE_URL}/api/register`, {
+            const response = await fetch(getApiBase() + '/api/register', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -198,7 +212,7 @@ const API = {
     async revokeImage(imageHash) {
         try {
             const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
-            const response = await fetch(`${API_BASE_URL}/api/revoke`, {
+            const response = await fetch(getApiBase() + '/api/revoke', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -227,7 +241,7 @@ const API = {
     async getMyImages() {
         try {
             const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
-            const response = await fetch(`${API_BASE_URL}/api/my-images`, {
+            const response = await fetch(getApiBase() + '/api/my-images', {
                 headers: authHeaders
             });
             const data = await response.json();
@@ -247,7 +261,7 @@ const API = {
             const formData = new FormData();
             formData.append('image', file);
 
-            const response = await fetch(`${API_BASE_URL}/api/verify`, {
+            const response = await fetch(getApiBase() + '/api/verify', {
                 method: 'POST',
                 body: formData
             });
@@ -268,7 +282,7 @@ const API = {
     // Verify by hash
     async verifyHash(hash) {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/verify-hash`, {
+            const response = await fetch(getApiBase() + '/api/verify-hash', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -294,7 +308,7 @@ const API = {
     // Get user history
     async getUserHistory(address) {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/history/${address}`);
+            const response = await fetch(getApiBase() + `/api/history/${address}`);
             const data = await response.json();
             
             if (!response.ok) {
@@ -311,7 +325,7 @@ const API = {
     // Get all images
     async getAllImages(page = 1, perPage = 20) {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/all-images?page=${page}&per_page=${perPage}`);
+            const response = await fetch(getApiBase() + `/api/all-images?page=${page}&per_page=${perPage}`);
             const data = await response.json();
             
             if (!response.ok) {

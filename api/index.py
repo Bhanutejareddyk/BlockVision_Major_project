@@ -11,6 +11,14 @@ if backend_dir not in sys.path:
 if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
+# Ensure /tmp folders exist on Vercel serverless environment
+if os.getenv('VERCEL') == '1' or os.path.exists('/tmp'):
+    for tmp_dir in ['/tmp/uploads', '/tmp/encrypted', '/tmp/keys', '/tmp/data']:
+        try:
+            os.makedirs(tmp_dir, exist_ok=True)
+        except Exception:
+            pass
+
 from app import app
 from flask import jsonify
 

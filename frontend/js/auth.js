@@ -68,9 +68,10 @@ const Auth = {
             }
 
             const walletAddress = await this.connectWallet();
+            const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
 
             // 1. Request nonce challenge from backend
-            const nonceRes = await fetch(`${window.location.origin}/api/auth/nonce`, {
+            const nonceRes = await fetch(`${apiBase}/api/auth/nonce`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ walletAddress })
@@ -94,7 +95,7 @@ const Auth = {
             });
 
             // 3. Send signature to backend to verify and receive JWT
-            const loginRes = await fetch(`${window.location.origin}/api/auth/login`, {
+            const loginRes = await fetch(`${apiBase}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
