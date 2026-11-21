@@ -147,6 +147,95 @@ const API = {
         }
     },
 
+    // Fetch personal dashboard stats
+    async getDashboard() {
+        try {
+            const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
+            const response = await fetch(getApiBase() + '/api/dashboard', {
+                headers: authHeaders
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                const err = new Error(data.error || 'Failed to fetch dashboard stats');
+                err.status = response.status;
+                throw err;
+            }
+            return data;
+        } catch (error) {
+            console.error('Error fetching dashboard stats:', error);
+            throw error;
+        }
+    },
+
+    // Batch upload multiple images (up to 10)
+    async batchUpload(files, encrypt = false) {
+        try {
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('images', files[i]);
+            }
+            formData.append('encrypt', encrypt);
+
+            const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
+            const email = localStorage.getItem('bv_email') || '';
+            if (email) {
+                authHeaders['X-User-Email'] = email;
+            }
+
+            const response = await fetch(getApiBase() + '/api/batch-upload', {
+                method: 'POST',
+                headers: authHeaders,
+                body: formData
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                const err = new Error(data.error || 'Batch upload failed');
+                err.status = response.status;
+                err.data = data;
+                throw err;
+            }
+            return data;
+        } catch (error) {
+            console.error('Error in batch upload:', error);
+            throw error;
+        }
+    },
+
+    // Batch register multiple images on blockchain
+    async batchRegister(imagesList) {
+        try {
+            const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
+            const email = localStorage.getItem('bv_email') || '';
+            if (email) {
+                authHeaders['X-User-Email'] = email;
+            }
+
+            const response = await fetch(getApiBase() + '/api/batch-register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders
+                },
+                body: JSON.stringify({
+                    images: imagesList
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                const err = new Error(data.error || 'Batch registration failed');
+                err.status = response.status;
+                err.data = data;
+                throw err;
+            }
+            return data;
+        } catch (error) {
+            console.error('Error in batch register:', error);
+            throw error;
+        }
+    },
+
     // Upload image
     async uploadImage(file, encrypt = false) {
         try {

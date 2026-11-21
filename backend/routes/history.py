@@ -88,14 +88,71 @@ def get_user_history(address):
 
 @history_bp.route('/api/stats', methods=['GET'])
 def get_stats():
-    """Get blockchain and system statistics"""
+    """Get public blockchain and system statistics for dashboard and viva"""
     try:
         blockchain = get_blockchain()
-        total_images = blockchain.get_total_images()
-        is_connected = blockchain.is_connected()
+        total_images = 0
+        try:
+            total_images = blockchain.get_total_images()
+        except Exception as e:
+            print(f"[STATS] Error fetching total images: {e}")
+
+        total_verified = 0
+        total_revoked = 0
+        total_active = 0
+        owners = set()
+        all_loaded_images = []
+
+        # Iterate over all registered images to compute stats and recent images
+        for idx in range(total_images):
+            try:
+                img_hash = blockchain.get_image_by_index(idx)
+                det = blockchain.get_image_details(img_hash)
+                if det.get('exists'):
+                    owner = det.get('owner', '')
+                    if owner:
+                        owners.add(owner.lower())
+                    is_rev = bool(det.get('isRevoked', False))
+                    if is_rev:
+                        total_revoked += 1
+                    else:
+                        total_active += 1
+                        total_verified += 1
+                    cid = det.get('ipfsCID') or det.get('ipfs_cid') or ''
+                    all_loaded_images.append({
+                        'image_hash': img_hash,
+                        'owner': owner,
+                        'timestamp': det.get('timestamp', 0),
+                        'registration_date': datetime.fromtimestamp(det.get('timestamp', 0)).isoformat() if det.get('timestamp') else '',
+                        'filename': det.get('file_name', 'Unknown'),
+                        'ipfsCID': cid,
+                        'ipfsUrl': det.get('ipfsUrl') or (f"https://gateway.pinata.cloud/ipfs/{cid}" if cid else ""),
+                        'isRevoked': is_rev,
+                        'status': 'Revoked' if is_rev else 'Active'
+                    })
+            except Exception as item_err:
+                print(f"[STATS] Error inspecting image at index {idx}: {item_err}")
+                continue
+
+        # Sort by timestamp descending for recent images (last 5)
+        all_loaded_images.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+        recent_images = all_loaded_images[:5]
+
+        is_connected = False
+        try:
+            is_connected = blockchain.is_connected()
+        except Exception:
+            pass
 
         stats = {
             'success': True,
+            'totalImages': total_images,
+            'totalVerified': total_verified,
+            'totalRevoked': total_revoked,
+            'totalActive': total_active,
+            'totalOwners': len(owners),
+            'recentImages': recent_images,
+            # Backward compatibility fields
             'connected': is_connected,
             'total_images_registered': total_images,
             'mode': blockchain.mode,
@@ -104,16 +161,91 @@ def get_stats():
             'timestamp': datetime.now().isoformat()
         }
 
-        # Include account address and balance if available
         if blockchain.account:
-            balance = blockchain.get_balance()
-            stats['account_address'] = blockchain.account.address
-            stats['account_balance'] = f"{balance} ETH"
+            try:
+                balance = blockchain.get_balance()
+                stats['account_address'] = blockchain.account.address
+                stats['account_balance'] = f"{balance} ETH"
+            except Exception:
+                pass
 
         return jsonify(stats), 200
 
     except Exception as e:
-        return jsonify({'error': f'Failed to fetch stats: {str(e)}'}), 500
+        print(f"[STATS ERROR] {e}")
+        return jsonify({
+            'success': False,
+            'totalImages': 0,
+            'totalVerified': 0,
+            'totalRevoked': 0,
+            'totalActive': 0,
+            'totalOwners': 0,
+            'recentImages': [],
+            'error': str(e)
+        }), 200
+
+
+@history_bp.route('/api/dashboard', methods=['GET'])
+@require_auth
+def get_dashboard_stats():
+    """Get personal dashboard statistics for authenticated user's wallet"""
+    try:
+        user_wallet = g.wallet_address.strip().lower()
+        blockchain = get_blockchain()
+        
+        my_total = 0
+        my_active = 0
+        my_revoked = 0
+        my_transferred = 0
+
+        # Scan all images to calculate user-specific counts
+        total = 0
+        try:
+            total = blockchain.get_total_images()
+        except Exception:
+            pass
+
+        for idx in range(total):
+            try:
+                img_hash = blockchain.get_image_by_index(idx)
+                det = blockchain.get_image_details(img_hash)
+                if not det.get('exists'):
+                    continue
+                curr_owner = (det.get('owner') or '').lower()
+                prev_owner = (det.get('previousOwner') or '').lower()
+                is_rev = bool(det.get('isRevoked', False))
+
+                if curr_owner == user_wallet:
+                    my_total += 1
+                    if is_rev:
+                        my_revoked += 1
+                    else:
+                        my_active += 1
+                elif prev_owner == user_wallet and curr_owner != user_wallet:
+                    my_transferred += 1
+            except Exception:
+                continue
+
+        return jsonify({
+            'success': True,
+            'wallet': g.wallet_address,
+            'myTotal': my_total,
+            'myActive': my_active,
+            'myRevoked': my_revoked,
+            'myTransferred': my_transferred
+        }), 200
+
+    except Exception as e:
+        print(f"[DASHBOARD ERROR] {e}")
+        return jsonify({
+            'success': False,
+            'wallet': getattr(g, 'wallet_address', ''),
+            'myTotal': 0,
+            'myActive': 0,
+            'myRevoked': 0,
+            'myTransferred': 0,
+            'error': str(e)
+        }), 200
 
 
 @history_bp.route('/api/all-images', methods=['GET'])

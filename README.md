@@ -1,414 +1,233 @@
-# 🔐 BlockVision - Blockchain Image Verification System
-
-A complete blockchain-based image verification system that allows users to register images on the Ethereum blockchain and verify their authenticity. Features include SHA-256 hashing, AES-256 encryption, and immutable blockchain storage.
-
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Python](https://img.shields.io/badge/python-3.8+-green.svg)
-![Solidity](https://img.shields.io/badge/solidity-0.8.19-orange.svg)
-![Ethereum](https://img.shields.io/badge/ethereum-blockchain-purple.svg)
-
-## 🌟 Features
-
-### For Image Owners
-- ✅ Upload images and generate cryptographic proof of ownership
-- ✅ Immutable blockchain record with timestamp
-- ✅ AES-256 encryption for secure storage
-- ✅ Certificate of authenticity generation
-- ✅ Transaction history tracking
-
-### For Verifiers
-- ✅ Upload images to check authenticity
-- ✅ Compare against blockchain records
-- ✅ Detect image tampering
-- ✅ View original owner and registration details
-- ✅ Verify by hash without uploading files
-
-### Core Technologies
-- **Backend**: Python 3.8+, Flask, Web3.py
-- **Frontend**: HTML5, CSS3, Vanilla JavaScript
-- **Blockchain**: Solidity 0.8.19, Ethereum
-- **Security**: SHA-256 hashing, AES-256 encryption
-- **Smart Contracts**: Truffle/Hardhat deployment
-
-## 📁 Project Structure
-
-```
-blockchain-image-verification/
-├── backend/
-│   ├── app.py                      # Main Flask application
-│   ├── config.py                   # Configuration settings
-│   ├── requirements.txt            # Python dependencies
-│   ├── contracts/
-│   │   ├── ImageVerification.sol   # Smart contract
-│   │   └── compiled/               # Compiled contracts
-│   ├── utils/
-│   │   ├── blockchain.py           # Blockchain interaction
-│   │   ├── encryption.py           # AES encryption
-│   │   ├── hashing.py              # SHA-256 hashing
-│   │   └── image_handler.py        # Image processing
-│   └── routes/
-│       ├── upload.py               # Upload endpoints
-│       ├── verify.py               # Verification endpoints
-│       └── history.py              # History endpoints
-├── frontend/
-│   ├── index.html                  # Landing page
-│   ├── upload.html                 # Upload interface
-│   ├── verify.html                 # Verification interface
-│   ├── history.html                # Transaction history
-│   ├── css/                        # Stylesheets
-│   └── js/                         # JavaScript files
-├── blockchain/
-│   ├── truffle-config.js           # Truffle configuration
-│   ├── hardhat.config.js           # Hardhat configuration
-│   ├── scripts/deploy.js           # Deployment script
-│   ├── migrations/                 # Migration files
-│   └── test/                       # Smart contract tests
-└── .env                            # Environment variables
-```
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- **Python 3.8+**
-- **Node.js 16+**
-- **Ganache** (for local blockchain)
-- **MetaMask** browser extension
-- **Git**
-
-### Installation
-
-1. **Clone the repository**
-```bash
-git clone https://github.com/yourusername/blockchain-image-verification.git
-cd blockchain-image-verification
-```
-
-2. **Install Python dependencies**
-```bash
-cd backend
-pip install -r requirements.txt
-```
-
-3. **Install Node.js dependencies**
-```bash
-cd ../blockchain
-npm install
-```
-
-4. **Set up environment variables**
-```bash
-cp .env.example .env
-# Edit .env with your configuration
-```
-
-### Configuration
-
-Edit the `.env` file:
-
-```env
-# Blockchain Configuration
-ETHEREUM_NODE_URL=http://127.0.0.1:7545
-CONTRACT_ADDRESS=YOUR_CONTRACT_ADDRESS_HERE
-PRIVATE_KEY=YOUR_PRIVATE_KEY_HERE
-NETWORK_ID=5777
-
-# Flask Configuration
-FLASK_ENV=development
-SECRET_KEY=your-secret-key-change-this-in-production
-```
-
-### Deploy Smart Contract
-
-#### Using Hardhat (Recommended)
-
-1. **Start local blockchain (Ganache)**
-```bash
-ganache-cli
-# Or use Ganache GUI
-```
-
-2. **Compile contracts**
-```bash
-cd blockchain
-npx hardhat compile
-```
-
-3. **Deploy to local network**
-```bash
-npx hardhat run scripts/deploy.js --network ganache
-```
-
-4. **Copy contract address from output and update `.env`**
-
-#### Using Truffle
-
-```bash
-cd blockchain
-truffle compile
-truffle migrate --network ganache
-```
-
-### Run the Application
-
-1. **Start Flask backend**
-```bash
-cd backend
-python app.py
-```
-
-2. **Access the application**
-Open your browser and navigate to:
-```
-http://localhost:5000
-```
-
-## 📖 Usage Guide
-
-### 1. Upload and Register an Image
-
-1. Navigate to the **Upload** page
-2. Drag and drop an image or click to browse
-3. (Optional) Enable AES-256 encryption
-4. Click **Upload & Generate Hash**
-5. Click **Register on Blockchain**
-6. Confirm the transaction in MetaMask
-7. Download your certificate of authenticity
-
-### 2. Verify an Image
-
-#### Method 1: Upload Image
-1. Navigate to the **Verify** page
-2. Select "Upload Image" tab
-3. Upload the image you want to verify
-4. Click **Verify Image**
-5. View verification results
-
-#### Method 2: Verify by Hash
-1. Navigate to the **Verify** page
-2. Select "Verify by Hash" tab
-3. Paste the SHA-256 hash
-4. Click **Verify Hash**
-5. View verification results
-
-### 3. View History
-
-1. Navigate to the **History** page
-2. View all registered images
-3. Filter by "All", "My Images", or "Recent"
-4. Search by hash, filename, or address
-5. Click "View" for detailed information
-6. Export data to CSV
-
-## 🧪 Testing
-
-### Smart Contract Tests
-
-```bash
-cd blockchain
-npx hardhat test
-```
-
-Expected output:
-```
-  ImageVerification
-    ✓ Should deploy successfully
-    ✓ Should register an image successfully
-    ✓ Should not register duplicate image hash
-    ✓ Should verify registered image
-    ✓ Should track user's registered images
-```
-
-### Manual Testing
-
-1. **Test Image Upload**
-   - Upload various image formats (PNG, JPG, GIF)
-   - Test file size limits (max 16MB)
-   - Verify hash generation
-
-2. **Test Blockchain Registration**
-   - Register images on local blockchain
-   - Verify transaction success
-   - Check gas usage
-
-3. **Test Verification**
-   - Verify registered images
-   - Test with modified images
-   - Verify tampering detection
-
-## 🌐 Deployment
-
-### Deploy to Sepolia Testnet
-
-1. **Get Sepolia ETH**
-   - Use a faucet: https://sepoliafaucet.com/
-
-2. **Update `.env`**
-```env
-ETHEREUM_NODE_URL=https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID
-NETWORK_ID=11155111
-```
-
-3. **Deploy contract**
-```bash
-cd blockchain
-npx hardhat run scripts/deploy.js --network sepolia
-```
-
-4. **Verify on Etherscan** (automatic in deploy script)
-
-### Deploy Backend (Production)
-
-#### Using Gunicorn
-```bash
-pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
-```
-
-#### Using Docker
-```bash
-docker build -t blockvision-backend .
-docker run -p 5000:5000 blockvision-backend
-```
-
-## 🔒 Security Considerations
-
-1. **Private Keys**: Never commit private keys to version control
-2. **Environment Variables**: Use `.env` files and keep them secure
-3. **HTTPS**: Always use HTTPS in production
-4. **Input Validation**: All inputs are validated on backend
-5. **Rate Limiting**: Implement rate limiting for API endpoints
-6. **Encryption Keys**: Store encryption keys securely
-7. **Access Control**: Implement proper authentication
-
-## 📊 API Documentation
-
-### Upload Endpoints
-
-#### POST `/api/upload`
-Upload an image and generate hash.
-
-**Request:**
-- Content-Type: `multipart/form-data`
-- Body: `image` (file), `encrypt` (boolean)
-
-**Response:**
-```json
-{
-  "success": true,
-  "image_hash": "abc123...",
-  "filename": "image.jpg",
-  "file_size": 1234567,
-  "dimensions": "1920x1080",
-  "format": "JPEG"
-}
-```
-
-#### POST `/api/register`
-Register image hash on blockchain.
-
-**Request:**
-```json
-{
-  "image_hash": "abc123...",
-  "filename": "image.jpg"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "transaction_hash": "0x...",
-  "block_number": 12345,
-  "gas_used": 123456
-}
-```
-
-### Verify Endpoints
-
-#### POST `/api/verify`
-Verify image authenticity.
-
-**Request:**
-- Content-Type: `multipart/form-data`
-- Body: `image` (file)
-
-**Response:**
-```json
-{
-  "success": true,
-  "verified": true,
-  "authentic": true,
-  "owner": "0x...",
-  "timestamp": 1234567890,
-  "registration_date": "2024-01-01T00:00:00"
-}
-```
-
-#### POST `/api/verify-hash`
-Verify by hash only.
-
-**Request:**
-```json
-{
-  "image_hash": "abc123..."
-}
-```
-
-### History Endpoints
-
-#### GET `/api/history/:address`
-Get user's registered images.
-
-#### GET `/api/stats`
-Get blockchain statistics.
-
-#### GET `/api/all-images?page=1&per_page=20`
-Get all registered images (paginated).
-
-## 🛠️ Troubleshooting
-
-### Common Issues
-
-**Problem**: Contract deployment fails
-- **Solution**: Ensure Ganache is running and you have sufficient ETH
-
-**Problem**: MetaMask not connecting
-- **Solution**: Add localhost network to MetaMask (RPC: http://127.0.0.1:7545, Chain ID: 5777)
-
-**Problem**: Image upload fails
-- **Solution**: Check file size (max 16MB) and format (PNG, JPG, JPEG, GIF, BMP, WEBP)
-
-**Problem**: Transaction fails
-- **Solution**: Check gas limit and account balance
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 👥 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📧 Contact
-
-For questions or support, please open an issue on GitHub.
-
-## 🙏 Acknowledgments
-
-- Ethereum blockchain technology
-- Web3.py library
-- Flask framework
-- OpenZeppelin contracts
-- MetaMask wallet
+# BlockVision-2.0 - Blockchain Image Verification
+
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-blockvision--nu.vercel.app-0070f3?style=for-the-badge&logo=vercel)](https://blockvision-nu.vercel.app)
+[![Network](https://img.shields.io/badge/Blockchain-Ethereum%20Sepolia-627eea?style=for-the-badge&logo=ethereum)](https://sepolia.etherscan.io)
+[![Storage](https://img.shields.io/badge/Storage-IPFS%20Pinata-00d1b2?style=for-the-badge&logo=ipfs)](https://pinata.cloud)
+[![Authentication](https://img.shields.io/badge/Auth-MetaMask%20EIP--4361-f6851b?style=for-the-badge&logo=metamask)](https://metamask.io)
+
+> **Major Project Submission**  
+> **Student Author:** Bhanu Tej Reddy K.  
+> **Repository:** [https://github.com/Bhanutejareddyk/BlockVision_Major_project](https://github.com/Bhanutejareddyk/BlockVision_Major_project)  
+> **Live Production:** [https://blockvision-nu.vercel.app](https://blockvision-nu.vercel.app)
 
 ---
 
-**Made with ❤️ by BlockVision Team**
+## 📌 Executive Summary
+
+**BlockVision-2.0** is an enterprise-grade digital media provenance and authenticity assurance platform. By fusing **Ethereum smart contracts**, **IPFS decentralized content addressing**, **cryptographic personal signature authentication (EIP-712/EIP-4361)**, **dual-layer perceptual difference analysis (dHash & Hamming Heatmaps)**, and **tamper-resilient watermarking**, BlockVision-2.0 solves the vulnerability of unauthorized media tampering, copyright theft, and silent image spoofing.
+
+---
+
+## 🚀 Evolutionary Engineering: Upgrades #1 through #8
+
+- **Upgrade #1: Sepolia Ethereum Testnet Migration**
+  - Native integration with Ethereum Sepolia testnet via Infura/Alchemy RPC endpoints.
+  - Deployed `ImageVerification.sol` contract (`0x2334f06Ca3247c88Fc6D169122956ccD0aE5eD9f`) with real gas management and Etherscan transaction tracking.
+  - Backward-compatible `LocalLedger` fallback mode when RPC connectivity is offline.
+
+- **Upgrade #2: Decentralized Storage via IPFS & Pinata**
+  - High-res images are automatically pinned to IPFS upon registration via the Pinata REST API.
+  - The content-addressed CID (`ipfsCID`) is permanently committed on-chain within the smart contract struct.
+  - Instant decentralized preview gateways across certificates, history, and verification views.
+
+- **Upgrade #3: True User Authentication & Wallet Login**
+  - Cryptographic challenge-response authentication using MetaMask `personal_sign` and nonces.
+  - Eliminates centralized admin ownership: each user's MetaMask address is recorded on-chain as the true `owner` via `registerImageFor`.
+  - JWT session issuance for seamless frontend interaction without recurring signature prompts.
+
+- **Upgrade #4: Asset Revocation & Duplicate / Near-Duplicate Detection**
+  - Smart contract `revokeImage(string memory _imageHash)` function callable exclusively by the verified owner.
+  - Revocation flag (`isRevoked`) propagates across certificates, audit reports, and tables.
+  - Perceptual difference hashing (`dHash`) scans existing records to prevent 95%+ near-duplicate re-registration attempts.
+
+- **Upgrade #5: Cloud Production Deployment & Global Public Verification**
+  - Full-stack production deployment on Vercel Serverless (`@vercel/python` and `@vercel/static`).
+  - Dynamic QR codes on certificates directly resolve to public URLs (`https://blockvision-nu.vercel.app/verify?hash=...`) that allow unauthenticated auditors to verify certificates from any smartphone or browser.
+
+- **Upgrade #6: Robust Anti-Tamper Watermarking & Heatmap Diff**
+  - Anti-tamper watermark engine embedding repeated diagonal semi-transparent provenance text and owner addresses across images.
+  - Visual tamper heatmap generator computing exact pixel-level differential matrices when a modified image is analyzed against registered records.
+  - Backward-compatible LSB steganographic watermarking preserved.
+
+- **Upgrade #7: On-Chain Ownership Transfer & Automated Email Alerts**
+  - Smart contract `transferOwnership(string memory _imageHash, address _newOwner)` enabling secondary-market transfers.
+  - Tracks `previousOwner` provenance lineage across transactions and certificate audits.
+  - Asynchronous background SMTP email engine alerting owners when their registered asset is verified or transferred.
+
+- **Upgrade #8 (Final): High-Throughput Batch Processing & Executive Analytics Dashboard**
+  - Multi-file parallel batch upload (`POST /api/batch-upload`) and atomic batch registration (`POST /api/batch-register`) for up to 10 images simultaneously.
+  - Public `/api/stats` and authenticated `/api/dashboard` analytics engine.
+  - Comprehensive Executive Dashboard (`/dashboard`) presenting global network statistics, recent provenance logs, and personal wallet portfolios.
+
+---
+
+## 🛠 Tech Stack
+
+| Component | Technology | Description |
+| :--- | :--- | :--- |
+| **Frontend UI** | HTML5, CSS3, Modern JS (ES6+) | Apple-inspired responsive interface with light/dark theme |
+| **Backend Server** | Python 3.12+, Flask, Werkzeug | RESTful API server with thread-pool background execution |
+| **Smart Contracts** | Solidity 0.8.0+ (`--evm-version paris`) | EVM immutable registry tracking hashes, owners, CIDs, revocation |
+| **Blockchain Network** | Ethereum Sepolia Testnet | Decentralized public test network with Etherscan transparency |
+| **Decentralized Storage** | IPFS (Pinata API & Gateway) | Content-addressed immutable file storage |
+| **Authentication** | EIP-191 `personal_sign` + PyJWT | Web3 wallet challenge-response authentication with JWT sessions |
+| **Image Analysis** | Pillow (PIL), NumPy, dHash | SHA-256 cryptographic hashing & 64-bit perceptual visual fingerprinting |
+| **Deployment** | Vercel Serverless Architecture | Global CDN static hosting + serverless Python runtime |
+
+---
+
+## 💻 Local Development & Setup
+
+### Prerequisites
+- Python 3.8+ (tested up to 3.13)
+- Git
+- Google Chrome or Firefox with MetaMask extension
+
+### Installation Steps
+
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/Bhanutejareddyk/BlockVision_Major_project.git
+   cd BlockVision_Major_project
+   ```
+
+2. **Set Up Python Environment**:
+   ```bash
+   cd backend
+   python -m venv venv
+   # Windows:
+   venv\Scripts\activate
+   # macOS/Linux:
+   source venv/bin/activate
+
+   pip install -r requirements.txt
+   ```
+
+3. **Configure Environment Variables**:
+   ```bash
+   cp .env.example .env
+   ```
+   Edit `.env` with your credentials:
+   ```env
+   PRIVATE_KEY=your_sepolia_private_key
+   SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_KEY
+   CONTRACT_ADDRESS=0x2334f06Ca3247c88Fc6D169122956ccD0aE5eD9f
+   PINATA_API_KEY=your_pinata_key
+   PINATA_SECRET_API_KEY=your_pinata_secret
+   PINATA_JWT=your_pinata_jwt
+   SECRET_KEY=blockvision-super-secret-jwt-key
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=your_email@gmail.com
+   SMTP_PASS=your_16_char_google_app_password
+   ```
+
+4. **Deploy / Verify Smart Contract (Optional)**:
+   ```bash
+   python deploy.py
+   ```
+
+5. **Start Flask Server**:
+   ```bash
+   python app.py
+   ```
+   Open your browser to: `http://127.0.0.1:5000`
+
+---
+
+## 🔍 How to Test & Verify the System (Viva Demonstration)
+
+1. **Connect MetaMask**:
+   - Open [https://blockvision-nu.vercel.app](https://blockvision-nu.vercel.app) (or `http://127.0.0.1:5000`).
+   - Click **Connect Wallet** in the top navigation. Sign the cryptographic login challenge in MetaMask.
+2. **Single Upload**:
+   - Navigate to `/upload`. Select an image. Click **Continue**, then **Save to Blockchain**.
+   - Download the generated PDF certificate with embedded QR code.
+3. **Batch Mode Upload**:
+   - Toggle **Batch Mode (up to 10 images)** on `/upload`.
+   - Select multiple photos at once. Click **Upload & Register Batch**.
+   - Watch real-time batch processing and inspect the summary table with green active badges.
+4. **Public Verification & QR Audit**:
+   - Open `/verify`. Upload the saved certificate image or paste its SHA-256 fingerprint.
+   - Click **Check Photo**. Review the 100% cryptographic match, IPFS link, and Sepolia timestamp.
+5. **Tamper Detection & Heatmap**:
+   - Crop or edit 1 pixel of your registered photo.
+   - Upload the modified file to `/verify`. Observe the **SIMILAR - POSSIBLE TAMPERED COPY** warning and visual differential heatmap.
+6. **Executive Dashboard**:
+   - Open `/dashboard`. Review the 4 global metric cards, your personal wallet portfolio, and recent registrations.
+
+---
+
+## 📂 Project Structure
+
+```
+BlockVision_Major_project/
+├── .gitignore
+├── README.md                           # Comprehensive documentation & Viva guide
+├── vercel.json                         # Vercel deployment routing configuration
+├── requirements.txt                    # Root dependency definitions
+├── api/
+│   └── index.py                        # Vercel serverless Python entrypoint
+├── backend/
+│   ├── app.py                          # Flask application core & route registration
+│   ├── config.py                       # Environment configuration & fallbacks
+│   ├── deploy.py                       # Sepolia smart contract deployment automation
+│   ├── requirements.txt                # Backend dependencies
+│   ├── EMAIL_SETUP.md                  # SMTP email alert configuration instructions
+│   ├── contracts/
+│   │   ├── ImageVerification.sol       # Solidity smart contract
+│   │   └── compiled/
+│   │       ├── ImageVerification.abi   # Contract ABI interface
+│   │       └── ImageVerification.bin   # Contract EVM bytecode
+│   ├── routes/
+│   │   ├── upload.py                   # Upload, batch-upload, transfer, revoke routes
+│   │   ├── verify.py                   # Verification, tamper heatmap, hash check
+│   │   └── history.py                  # Stats, dashboard, user image history
+│   └── utils/
+│       ├── auth.py                     # MetaMask personal_sign challenge & JWT handler
+│       ├── blockchain.py               # Web3.py Sepolia RPC wrapper
+│       ├── local_ledger.py             # Offline blockchain simulator fallback
+│       ├── email.py                    # SMTP email alert dispatcher
+│       ├── encryption.py               # AES-256 file encryption engine
+│       ├── hashing.py                  # SHA-256 and dHash perceptual algorithms
+│       ├── image_handler.py            # File integrity, dimensions, sanitization
+│       ├── ipfs.py                     # Pinata IPFS pinning and gateway resolver
+│       ├── similarity.py               # Hamming distance near-duplicate detector
+│       └── steganography.py            # Anti-tamper & robust watermark generators
+├── frontend/                           # Source client assets (mirrored to public/)
+│   ├── index.html                      # Landing page
+│   ├── upload.html                     # Single & batch upload interface
+│   ├── verify.html                     # Cryptographic verification & tamper check
+│   ├── history.html                    # All registered asset ledger
+│   ├── dashboard.html                  # Executive analytics dashboard
+│   ├── css/                            # Apple-aesthetic design system
+│   └── js/
+│       ├── auth.js                     # MetaMask wallet connector & session keeper
+│       ├── certificate.js              # Client-side PDF certificate generator
+│       ├── dashboard.js                # Dashboard metrics & portfolio visualizer
+│       ├── history.js                  # History pagination, revocation & transfer
+│       ├── main.js                     # Global API client & toast notifications
+│       ├── upload.js                   # Single & batch upload event handler
+│       └── verify.js                   # Verification & QR handler
+└── public/                             # Vercel CDN production static files
+```
+
+---
+
+## 📸 Screenshots
+
+| Landing Page | Executive Dashboard |
+| :---: | :---: |
+| *(Hero landing with wallet authentication)* | *(Real-time Sepolia metrics & recent registrations)* |
+
+| Batch Upload Interface | Audit Certificate |
+| :---: | :---: |
+| *(Simultaneous multi-asset registration)* | *(High-res PDF proof with QR verification)* |
+
+---
+
+## 🎓 Academic Major Project Credits
+
+- **Student:** Bhanu Tej Reddy K.
+- **Project Title:** BlockVision-2.0: Decentralized Image Provenance and Cryptographic Verification Architecture
+- **Academic Year:** 2026

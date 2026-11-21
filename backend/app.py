@@ -73,6 +73,12 @@ def history_page():
     return send_from_directory(app.static_folder, 'history.html')
 
 
+@app.route('/dashboard')
+def dashboard_page():
+    """Serve dashboard page"""
+    return send_from_directory(app.static_folder, 'dashboard.html')
+
+
 # Static asset routes
 @app.route('/css/<path:filename>')
 def serve_css(filename):

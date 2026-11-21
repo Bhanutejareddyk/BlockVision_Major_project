@@ -9,6 +9,7 @@
     { "src": "/upload", "dest": "/public/upload.html" },
     { "src": "/verify", "dest": "/public/verify.html" },
     { "src": "/history", "dest": "/public/history.html" },
+    { "src": "/dashboard", "dest": "/public/dashboard.html" },
     { "src": "/(.*)", "dest": "/public/$1" }
   ]
 }

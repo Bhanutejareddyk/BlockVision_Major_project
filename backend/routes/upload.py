@@ -139,6 +139,142 @@ def upload_image():
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
 
+@upload_bp.route('/api/batch-upload', methods=['POST'])
+@require_auth
+def batch_upload():
+    """
+    Accepts up to 10 files in 'images' field.
+    Loops process_image_upload for each.
+    Returns {success: True, total: N, uploaded: [...], failed: [...]}
+    """
+    try:
+        files = request.files.getlist('images')
+        if not files or len(files) == 0:
+            if 'image' in request.files:
+                files = [request.files['image']]
+            elif 'images' in request.files:
+                files = [request.files['images']]
+            else:
+                return jsonify({'success': False, 'error': 'No image files provided in images field'}), 400
+
+        # Limit to max 10 files
+        files = files[:10]
+        encrypt_option = request.form.get('encrypt', 'false').lower() == 'true'
+
+        uploaded = []
+        failed = []
+
+        for file in files:
+            if not file or not file.filename:
+                continue
+            fname = file.filename
+            data, err, status = process_image_upload(file, encrypt_option)
+            if err:
+                failed.append({'filename': fname, 'error': err.get('error', 'Upload error'), 'status': status})
+            else:
+                data['owner'] = g.wallet_address
+                uploaded.append(data)
+
+        return jsonify({
+            'success': True,
+            'total': len(files),
+            'uploaded': uploaded,
+            'failed': failed
+        }), 200
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Batch upload failed: {str(e)}'}), 500
+
+
+@upload_bp.route('/api/batch-register', methods=['POST'])
+@require_auth
+def batch_register():
+    """
+    Registers an array of images under caller's wallet:
+    Body: {images: [{image_hash, filename, ipfsCID}]}
+    Loops register_image_for for each, checks duplicate per image but continues others.
+    Returns {success: True, registered: [...], skippedDuplicate: [...], failed: [...]}
+    """
+    try:
+        data = request.get_json(silent=True)
+        if not data or 'images' not in data:
+            return jsonify({'success': False, 'error': 'images array is required in request body'}), 400
+
+        images_list = data.get('images', [])
+        if not isinstance(images_list, list) or len(images_list) == 0:
+            return jsonify({'success': False, 'error': 'images list is empty'}), 400
+
+        blockchain = get_blockchain()
+        user_wallet = g.wallet_address
+
+        registered = []
+        skipped_duplicate = []
+        failed = []
+
+        for item in images_list:
+            if not isinstance(item, dict):
+                continue
+
+            image_hash = (item.get('image_hash') or item.get('imageHash') or '').strip()
+            filename = item.get('filename') or 'unknown.jpg'
+            ipfs_cid = item.get('ipfsCID') or item.get('ipfs_cid') or ''
+
+            if not image_hash:
+                failed.append({'filename': filename, 'error': 'Missing image_hash'})
+                continue
+
+            try:
+                # Check for existing registration
+                details = blockchain.get_image_details(image_hash)
+                if details.get('exists') and not details.get('isRevoked', False):
+                    skipped_duplicate.append({
+                        'image_hash': image_hash,
+                        'filename': filename,
+                        'owner': details.get('owner', 'Unknown'),
+                        'message': 'Already registered on blockchain'
+                    })
+                    continue
+
+                # If IPFS CID was not provided, check if file is in uploads and pin
+                if not ipfs_cid:
+                    for ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']:
+                        target = os.path.join(Config.UPLOAD_FOLDER, f"{image_hash}{ext}")
+                        if os.path.exists(target):
+                            try:
+                                ipfs_cid = upload_to_ipfs(target)
+                            except Exception:
+                                ipfs_cid = ""
+                            break
+
+                reg_result = blockchain.register_image_for(user_wallet, image_hash, filename, ipfs_cid)
+                registered.append({
+                    'image_hash': image_hash,
+                    'filename': filename,
+                    'transaction_hash': reg_result.get('transaction_hash', ''),
+                    'ipfsCID': ipfs_cid,
+                    'ipfsUrl': get_ipfs_url(ipfs_cid) if ipfs_cid else "",
+                    'owner': user_wallet
+                })
+
+            except Exception as reg_err:
+                failed.append({
+                    'image_hash': image_hash,
+                    'filename': filename,
+                    'error': str(reg_err)
+                })
+
+        return jsonify({
+            'success': True,
+            'total': len(images_list),
+            'registered': registered,
+            'skippedDuplicate': skipped_duplicate,
+            'failed': failed
+        }), 200
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Batch register failed: {str(e)}'}), 500
+
+
 @upload_bp.route('/api/register', methods=['POST'])
 @require_auth
 def register_on_blockchain():
