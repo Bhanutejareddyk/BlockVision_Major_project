@@ -155,6 +155,10 @@ const API = {
             formData.append('encrypt', encrypt);
 
             const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
+            const email = localStorage.getItem('bv_email') || '';
+            if (email) {
+                authHeaders['X-User-Email'] = email;
+            }
 
             const response = await fetch(getApiBase() + '/api/upload', {
                 method: 'POST',
@@ -179,6 +183,10 @@ const API = {
     async registerOnBlockchain(imageHash, filename) {
         try {
             const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
+            const email = localStorage.getItem('bv_email') || '';
+            if (email) {
+                authHeaders['X-User-Email'] = email;
+            }
 
             const response = await fetch(getApiBase() + '/api/register', {
                 method: 'POST',
@@ -208,10 +216,50 @@ const API = {
         }
     },
 
+    // Transfer image ownership
+    async transferImage(imageHash, newOwner) {
+        try {
+            const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
+            const email = localStorage.getItem('bv_email') || '';
+            if (email) {
+                authHeaders['X-User-Email'] = email;
+            }
+
+            const response = await fetch(getApiBase() + '/api/transfer', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders
+                },
+                body: JSON.stringify({
+                    image_hash: imageHash,
+                    new_owner: newOwner
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                const err = new Error(data.error || 'Transfer failed');
+                err.status = response.status;
+                err.data = data;
+                throw err;
+            }
+            return data;
+        } catch (error) {
+            console.error('Error transferring image:', error);
+            throw error;
+        }
+    },
+
     // Revoke image registration
     async revokeImage(imageHash) {
         try {
             const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
+            const email = localStorage.getItem('bv_email') || '';
+            if (email) {
+                authHeaders['X-User-Email'] = email;
+            }
+
             const response = await fetch(getApiBase() + '/api/revoke', {
                 method: 'POST',
                 headers: {
@@ -256,13 +304,23 @@ const API = {
     },
 
     // Verify image
-    async verifyImage(file) {
+    async verifyImage(file, notifyEmail = null) {
         try {
             const formData = new FormData();
             formData.append('image', file);
+            if (notifyEmail) {
+                formData.append('notifyEmail', notifyEmail);
+            }
+
+            const email = notifyEmail || localStorage.getItem('bv_email') || '';
+            const headers = {};
+            if (email) {
+                headers['X-Owner-Email'] = email;
+            }
 
             const response = await fetch(getApiBase() + '/api/verify', {
                 method: 'POST',
+                headers: headers,
                 body: formData
             });
 
@@ -280,15 +338,22 @@ const API = {
     },
 
     // Verify by hash
-    async verifyHash(hash) {
+    async verifyHash(hash, notifyEmail = null) {
         try {
+            const email = notifyEmail || localStorage.getItem('bv_email') || '';
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            if (email) {
+                headers['X-Owner-Email'] = email;
+            }
+
             const response = await fetch(getApiBase() + '/api/verify-hash', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: headers,
                 body: JSON.stringify({
-                    image_hash: hash
+                    image_hash: hash,
+                    notifyEmail: email
                 })
             });
 
@@ -297,6 +362,13 @@ const API = {
             if (!response.ok) {
                 throw new Error(data.error || 'Hash verification failed');
             }
+
+            return data;
+        } catch (error) {
+            console.error('Error verifying hash:', error);
+            throw error;
+        }
+    },
 
             return data;
         } catch (error) {

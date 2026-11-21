@@ -229,6 +229,65 @@ class BlockchainInterface:
             'image_hash': image_hash,
             'isRevoked': True
         }
+
+    def transfer_image(self, image_hash, current_owner_wallet, new_owner_wallet):
+        """
+        Transfer image ownership on the blockchain via backend relayer.
+        Checks that current_owner_wallet is the registered owner.
+        """
+        if not self.contract or not self.account:
+            raise RuntimeError("Contract or account not initialized")
+
+        details = self.get_image_details(image_hash)
+        if not details.get('exists'):
+            raise ValueError("Image is not registered")
+
+        if details.get('isRevoked'):
+            raise ValueError("Cannot transfer revoked image")
+
+        registered_owner = details.get('owner', '').lower()
+        if registered_owner != current_owner_wallet.strip().lower():
+            raise PermissionError("Only owner can transfer")
+
+        checksum_new_owner = Web3.to_checksum_address(new_owner_wallet)
+        checksum_current = Web3.to_checksum_address(current_owner_wallet)
+        if checksum_new_owner == checksum_current:
+            raise ValueError("New owner must be different from current owner")
+
+        nonce = self.web3.eth.get_transaction_count(self.account.address)
+        gas_price = self.web3.eth.gas_price
+        chain_id = self.web3.eth.chain_id
+
+        transaction = self.contract.functions.transferOwnership(
+            image_hash,
+            checksum_new_owner
+        ).build_transaction({
+            'from': self.account.address,
+            'nonce': nonce,
+            'gas': 350000,
+            'gasPrice': gas_price,
+            'chainId': chain_id
+        })
+
+        signed_txn = self.web3.eth.account.sign_transaction(
+            transaction,
+            private_key=self.private_key
+        )
+
+        raw_tx = getattr(signed_txn, "raw_transaction", getattr(signed_txn, "rawTransaction", None))
+        tx_hash = self.web3.eth.send_raw_transaction(raw_tx)
+        tx_receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+
+        return {
+            'status': 'success' if tx_receipt.get('status') == 1 else 'failed',
+            'transaction_hash': tx_hash.hex(),
+            'block_number': tx_receipt.get('blockNumber'),
+            'gas_used': tx_receipt.get('gasUsed'),
+            'image_hash': image_hash,
+            'previousOwner': details.get('owner'),
+            'newOwner': checksum_new_owner,
+            'owner': checksum_new_owner
+        }
     
     def get_image_details(self, image_hash):
         """
@@ -251,6 +310,7 @@ class BlockchainInterface:
                 'exists': bool(exists),
                 'image_hash': img_hash,
                 'owner': owner,
+                'previousOwner': owner,
                 'timestamp': timestamp,
                 'file_name': file_name,
                 'ipfs_cid': cid,

@@ -152,6 +152,34 @@ class LocalLedger:
             'isRevoked': True
         }
 
+    def transfer_image(self, image_hash, current_owner_wallet, new_owner_wallet):
+        with _LOCK:
+            blocks = self._load()
+            target = next((b for b in blocks if b['image_hash'].lower() == image_hash.lower()), None)
+            if not target:
+                raise ValueError('Image is not registered')
+            if target.get('isRevoked', False):
+                raise ValueError('Cannot transfer revoked image')
+            if target['owner'].lower() != current_owner_wallet.strip().lower():
+                raise PermissionError('Only owner can transfer')
+            if current_owner_wallet.strip().lower() == new_owner_wallet.strip().lower():
+                raise ValueError('New owner must be different from current owner')
+
+            previous_owner = target['owner']
+            target['previousOwner'] = previous_owner
+            target['owner'] = new_owner_wallet.strip()
+            self._save(blocks)
+        return {
+            'status': 'success',
+            'transaction_hash': '0x' + target['block_hash'],
+            'block_number': target['index'] + 1,
+            'gas_used': 0,
+            'image_hash': image_hash,
+            'previousOwner': previous_owner,
+            'newOwner': target['owner'],
+            'owner': target['owner']
+        }
+
     def get_image_details(self, image_hash):
         block = self._find(image_hash)
         if not block:
@@ -161,6 +189,7 @@ class LocalLedger:
             'exists': True,
             'image_hash': block['image_hash'],
             'owner': block['owner'],
+            'previousOwner': block.get('previousOwner') or block['owner'],
             'timestamp': block['timestamp'],
             'file_name': block['file_name'],
             'ipfs_cid': cid,

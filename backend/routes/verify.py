@@ -1,5 +1,6 @@
 import os
 import uuid
+import threading
 from datetime import datetime
 from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
@@ -14,6 +15,7 @@ from utils.image_handler import ImageHandler
 from utils.steganography import SteganographyHandler
 from utils.blockchain import get_blockchain
 from utils.ipfs import get_ipfs_url
+from utils.email import send_verification_alert
 from config import Config
 
 verify_bp = Blueprint('verify', __name__)
@@ -88,6 +90,25 @@ def verify_image():
                         'watermark_type': wm_type,
                         'embedded_watermark': wm_data if has_wm else None
                     }), 200
+
+                # Optional email notification to owner if requested
+                notify_email = (
+                    request.headers.get('X-Owner-Email') or 
+                    request.headers.get('X-User-Email') or 
+                    request.form.get('notifyEmail') or 
+                    request.args.get('notifyEmail') or 
+                    ''
+                ).strip()
+                if notify_email and '@' in notify_email:
+                    try:
+                        v_ip = request.headers.get('X-Forwarded-For', request.remote_addr or 'Unknown').split(',')[0].strip()
+                        threading.Thread(
+                            target=send_verification_alert,
+                            args=(notify_email, image_hash, v_ip),
+                            daemon=True
+                        ).start()
+                    except Exception as em_err:
+                        print(f"[VERIFY EMAIL ALERT ERROR] {em_err}")
 
                 return jsonify({
                     'success': True,
@@ -243,6 +264,25 @@ def verify_hash():
                     'ipfsCID': cid,
                     'ipfsUrl': get_ipfs_url(cid) if cid else ""
                 }), 200
+
+            # Optional email notification to owner if requested
+            notify_email = (
+                request.headers.get('X-Owner-Email') or 
+                request.headers.get('X-User-Email') or 
+                (data or {}).get('notifyEmail') or 
+                request.args.get('notifyEmail') or 
+                ''
+            ).strip()
+            if notify_email and '@' in notify_email:
+                try:
+                    v_ip = request.headers.get('X-Forwarded-For', request.remote_addr or 'Unknown').split(',')[0].strip()
+                    threading.Thread(
+                        target=send_verification_alert,
+                        args=(notify_email, image_hash, v_ip),
+                        daemon=True
+                    ).start()
+                except Exception as em_err:
+                    print(f"[VERIFY-HASH EMAIL ALERT ERROR] {em_err}")
 
             return jsonify({
                 'success': True,

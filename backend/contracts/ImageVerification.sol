@@ -206,9 +206,12 @@ contract ImageVerification {
     function transferOwnership(string memory _imageHash, address _newOwner) public returns (bool) {
         require(images[_imageHash].exists, "Image is not registered");
         require(!images[_imageHash].isRevoked, "Cannot transfer revoked image");
-        require(images[_imageHash].owner == msg.sender, "Only current owner can transfer ownership");
+        require(
+            images[_imageHash].owner == msg.sender || msg.sender == backendAdmin,
+            "Only current owner can transfer ownership"
+        );
         require(_newOwner != address(0), "New owner address cannot be zero");
-        require(_newOwner != msg.sender, "New owner must be different from current owner");
+        require(_newOwner != images[_imageHash].owner, "New owner must be different from current owner");
 
         address previousOwner = images[_imageHash].owner;
         images[_imageHash].owner = _newOwner;

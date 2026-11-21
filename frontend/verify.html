@@ -130,6 +130,16 @@
                         </div>
                     </div>
 
+                    <div class="verify-options" style="padding: 12px 0 6px 0; border-top: 1px solid var(--border-color, #e5e5ea); margin-top: 14px;">
+                        <label class="checkbox-label" for="notifyOwnerCheckbox" style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: var(--text-primary, #1d1d1f);">
+                            <input type="checkbox" id="notifyOwnerCheckbox" style="cursor: pointer; width: 16px; height: 16px;">
+                            <span>Notify owner by email if verified</span>
+                        </label>
+                        <div id="verifyEmailBox" style="display: none; margin-top: 8px;">
+                            <input type="email" id="verifyEmailInput" class="form-input" placeholder="Owner email (defaults to saved alert email)" style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color, #d1d1d6); font-size: 13px; box-sizing: border-box;">
+                        </div>
+                    </div>
+
                     <div class="progress-bar" id="verifyProgressBar" style="display: none;" role="progressbar" aria-label="Verification progress">
                         <div class="progress-fill" id="verifyProgressFill"></div>
                     </div>

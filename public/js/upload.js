@@ -21,6 +21,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultDetails = document.getElementById('resultDetails');
     const downloadCertificate = document.getElementById('downloadCertificate');
     const uploadAnother = document.getElementById('uploadAnother');
+    const alertEmailInput = document.getElementById('alertEmailInput');
+
+    if (alertEmailInput) {
+        alertEmailInput.value = localStorage.getItem('bv_email') || '';
+        alertEmailInput.addEventListener('input', () => {
+            const val = alertEmailInput.value.trim();
+            if (val) {
+                localStorage.setItem('bv_email', val);
+            } else {
+                localStorage.removeItem('bv_email');
+            }
+        });
+    }
 
     let selectedFile = null;
     let uploadedData = null;
@@ -158,6 +171,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Upload image
     async function uploadImage() {
         try {
+            if (alertEmailInput && alertEmailInput.value.trim()) {
+                localStorage.setItem('bv_email', alertEmailInput.value.trim());
+            }
+
             uploadBtn.disabled = true;
             progressBar.style.display = 'block';
             progressFill.style.width = '30%';

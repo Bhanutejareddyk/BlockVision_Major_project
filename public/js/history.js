@@ -273,6 +273,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             Copy
                         </button>
                         ${canRevoke ? `
+                        <button class="btn-action btn-transfer" onclick="window.handleTransfer('${img.image_hash}')" style="color: #0071e3; border-color: rgba(0, 113, 227, 0.3);" title="Transfer ownership to another wallet">
+                            Transfer
+                        </button>
                         <button class="btn-action btn-revoke" onclick="window.handleRevoke('${img.image_hash}')" style="color: #ff3b30; border-color: rgba(255, 59, 48, 0.3);" title="Revoke this registration">
                             Revoke
                         </button>` : ''}
@@ -293,6 +296,35 @@ document.addEventListener('DOMContentLoaded', async () => {
             pagination.style.display = 'none';
         }
     }
+
+    // Transfer ownership (global function)
+    window.handleTransfer = window.transferImage = async function(imageHash) {
+        const newOwner = prompt("Enter the new owner's Ethereum wallet address (0x...):");
+        if (!newOwner) return;
+
+        const trimmed = newOwner.trim();
+        if (!/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
+            Utils.showToast('Invalid Address', 'Must be a valid 42-character Ethereum address starting with 0x', 'error');
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to permanently transfer ownership of this image to:\n${trimmed}\n\nYou will no longer be able to manage or revoke this asset.`)) {
+            return;
+        }
+
+        try {
+            Utils.showToast('Transferring', 'Submitting transfer transaction to blockchain...', 'info');
+            const res = await API.transferImage(imageHash, trimmed);
+            if (res.success) {
+                Utils.showToast('Transfer Complete!', `Ownership successfully transferred to ${Utils.formatAddress(trimmed)}`, 'success');
+                await loadHistory();
+            } else {
+                Utils.showToast('Transfer Failed', res.error || 'Failed to transfer ownership', 'error');
+            }
+        } catch (err) {
+            Utils.showToast('Error', err.message || 'Failed to transfer ownership', 'error');
+        }
+    };
 
     // Revoke registration (global function)
     window.handleRevoke = async function(imageHash) {
@@ -347,6 +379,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     ${image.owner && image.owner.startsWith('0x') ? `<a href="https://sepolia.etherscan.io/address/${image.owner}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline;">${image.owner}</a>` : image.owner}
                 </div>
             </div>
+            ${(image.previousOwner && image.previousOwner !== '0x0000000000000000000000000000000000000000') ? `
+            <div class="modal-detail-item">
+                <div class="modal-detail-label">Previous Owner</div>
+                <div class="modal-detail-value mono">
+                    <a href="https://sepolia.etherscan.io/address/${image.previousOwner}" target="_blank" rel="noopener noreferrer" style="color: var(--text-muted); text-decoration: underline;">${image.previousOwner}</a>
+                </div>
+            </div>` : ''}
             <div class="modal-detail-item">
                 <div class="modal-detail-label">Registration Date</div>
                 <div class="modal-detail-value">${image.registration_date}</div>

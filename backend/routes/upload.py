@@ -383,6 +383,74 @@ def revoke_image_endpoint():
         return jsonify({'success': False, 'error': f'Revocation failed: {str(e)}'}), 500
 
 
+@upload_bp.route('/api/transfer', methods=['POST'])
+@require_auth
+def transfer_image_endpoint():
+    """Transfer ownership of a registered image to a new wallet address"""
+    try:
+        data = request.get_json(silent=True) or {}
+        image_hash = (data.get('imageHash') or data.get('image_hash') or '').strip()
+        new_owner = (data.get('newOwner') or data.get('new_owner') or '').strip()
+
+        if not image_hash:
+            return jsonify({'success': False, 'error': 'imageHash is required'}), 400
+
+        if not new_owner or not new_owner.startswith('0x') or len(new_owner) != 42:
+            return jsonify({'success': False, 'error': 'Invalid newOwner address. Must start with 0x and be 42 characters.'}), 400
+
+        user_wallet = g.wallet_address
+        blockchain = get_blockchain()
+
+        # Check ownership
+        details = blockchain.get_image_details(image_hash)
+        if not details.get('exists'):
+            return jsonify({'success': False, 'error': 'Image not registered'}), 404
+
+        if details.get('isRevoked'):
+            return jsonify({'success': False, 'error': 'Cannot transfer revoked image'}), 400
+
+        current_owner = (details.get('owner') or '').strip().lower()
+        if current_owner != user_wallet.strip().lower():
+            return jsonify({'success': False, 'error': 'Only owner can transfer'}), 403
+
+        if current_owner == new_owner.strip().lower():
+            return jsonify({'success': False, 'error': 'New owner must be different from current owner'}), 400
+
+        result = blockchain.transfer_image(image_hash, user_wallet, new_owner)
+
+        # Trigger email notification non-blocking
+        owner_email = request.headers.get('X-User-Email') or data.get('ownerEmail') or data.get('email')
+        new_owner_email = data.get('newOwnerEmail')
+        if owner_email or new_owner_email:
+            try:
+                import threading
+                from utils.email import send_transfer_alert
+                threading.Thread(
+                    target=send_transfer_alert,
+                    args=(owner_email, new_owner_email, image_hash, user_wallet, new_owner),
+                    daemon=True
+                ).start()
+            except Exception as mail_err:
+                print(f"[EMAIL WARNING] Failed to trigger transfer alert: {mail_err}")
+
+        return jsonify({
+            'success': True,
+            'message': 'Ownership successfully transferred',
+            'image_hash': image_hash,
+            'transaction_hash': result.get('transaction_hash', ''),
+            'previousOwner': user_wallet,
+            'newOwner': new_owner,
+            'owner': new_owner
+        }), 200
+
+    except PermissionError as pe:
+        return jsonify({'success': False, 'error': str(pe)}), 403
+    except ValueError as ve:
+        return jsonify({'success': False, 'error': str(ve)}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Transfer failed: {str(e)}'}), 500
+
+
 @upload_bp.route('/api/check-duplicate', methods=['GET'])
 def check_duplicate():
     """Check if hash exists, whether revoked, owner, and whether near-duplicates exist"""
