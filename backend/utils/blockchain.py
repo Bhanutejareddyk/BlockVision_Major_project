@@ -25,10 +25,12 @@ def load_contract_abi(abi_file=None):
 
 class BlockchainInterface:
     """Interface for interacting with Ethereum blockchain"""
-    
+
+    mode = 'ethereum'
+
     def __init__(self, node_url, contract_address, contract_abi, private_key=None):
         """Initialize blockchain interface"""
-        self.web3 = Web3(Web3.HTTPProvider(node_url))
+        self.web3 = Web3(Web3.HTTPProvider(node_url, request_kwargs={'timeout': 5}))
         self.contract_address = Web3.to_checksum_address(contract_address) if contract_address else None
         self.private_key = private_key
         
@@ -232,9 +234,25 @@ class BlockchainInterface:
 
 def get_blockchain():
     """
-    ONE helper function to get an initialized BlockchainInterface.
-    Dynamically reloads configuration and contract ABI.
+    Return the Ethereum interface when a node and contract are reachable,
+    otherwise the built-in LocalLedger so the app works on any machine.
+    Set BLOCKCHAIN_MODE=ethereum to require Ethereum, or =local to skip it.
     """
+    from utils.local_ledger import LocalLedger
+
+    mode = os.getenv('BLOCKCHAIN_MODE', 'auto').strip().lower()
+    if mode == 'local':
+        return LocalLedger()
+    try:
+        return _get_ethereum_blockchain()
+    except Exception as e:
+        if mode == 'ethereum':
+            raise
+        print(f"[BLOCKCHAIN] Ethereum unavailable ({e}); using local ledger.")
+        return LocalLedger()
+
+
+def _get_ethereum_blockchain():
     contract_address = Config.CONTRACT_ADDRESS
     if not contract_address:
         raise RuntimeError("CONTRACT_ADDRESS not configured. Please run python deploy.py first.")

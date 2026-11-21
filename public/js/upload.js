@@ -32,6 +32,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    uploadZone.addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target === uploadZone) {
+            e.preventDefault();
+            fileInput.click();
+        }
+    });
+
     // File input change
     fileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
@@ -222,7 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
             { label: 'Block Number', value: data.block_number },
             { label: 'Gas Used', value: data.gas_used },
             { label: 'Timestamp', value: new Date(data.timestamp).toLocaleString() }
-        ];
+        ].filter(detail => !(detail.label === 'Gas Used' && !detail.value));
 
         if (data.encrypted) {
             details.push({ 

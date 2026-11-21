@@ -2,98 +2,97 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify Image - BlockVision</title>
-    <link rel="stylesheet" href="/css/style.css">
-    <link rel="stylesheet" href="/css/upload.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Check whether a photo is registered on the blockchain and unchanged.">
+    <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+    <title>Check a Photo - BlockVision</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/upload.css">
 </head>
 <body>
-    <!-- Animated Background -->
-    <div class="animated-bg">
-        <div class="gradient-orb orb-1"></div>
-        <div class="gradient-orb orb-2"></div>
-        <div class="gradient-orb orb-3"></div>
-    </div>
-
-    <!-- Navigation -->
-    <nav class="navbar">
+    <nav class="navbar" aria-label="Main">
         <div class="container">
             <div class="nav-content">
-                <div class="nav-brand">
-                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <a href="/" class="nav-brand" aria-label="BlockVision home">
+                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                         <path d="M12 2L2 7l10 5 10-5-10-5z"/>
                         <path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>
                     </svg>
                     <span class="brand-name">BlockVision</span>
-                </div>
+                </a>
                 <div class="nav-links">
-                    <a href="/" class="nav-link">Home</a>
-                    <a href="/upload" class="nav-link">Upload</a>
-                    <a href="/verify" class="nav-link active">Verify</a>
-                    <a href="/history" class="nav-link">History</a>
+                    <a href="/" class="nav-link">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
+                        <span>Home</span>
+                    </a>
+                    <a href="/upload" class="nav-link">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <span>Upload</span>
+                    </a>
+                    <a href="/verify" class="nav-link active" aria-current="page">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                        <span>Verify</span>
+                    </a>
+                    <a href="/history" class="nav-link">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                        <span>History</span>
+                    </a>
                 </div>
             </div>
         </div>
     </nav>
 
-    <!-- Verify Section -->
-    <section class="upload-section">
+    <main class="upload-section">
         <div class="container">
-            <div class="upload-header">
-                <h1 class="page-title">
-                    Verify Image <span class="gradient-text">Authenticity</span>
-                </h1>
-                <p class="page-description">
-                    Check if an image is registered on the blockchain and detect tampering
-                </p>
-            </div>
+            <header class="page-header">
+                <h1 class="page-title">Check a photo.</h1>
+                <p class="page-description">Find out if an image is registered and whether it has been changed.</p>
+            </header>
 
             <div class="upload-container">
-                <!-- Verify Card -->
                 <div class="upload-card glass-card">
-                    <!-- Tab Selector -->
-                    <div class="tab-selector">
-                        <button class="tab-btn active" data-tab="upload">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                <polyline points="17 8 12 3 7 8"/>
-                                <line x1="12" y1="3" x2="12" y2="15"/>
+                    <div class="tab-selector" role="tablist" aria-label="Verification method">
+                        <button class="tab-btn active" data-tab="upload" type="button" role="tab">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                                <rect x="3" y="3" width="18" height="18" rx="3"/>
+                                <circle cx="8.5" cy="8.5" r="1.5"/>
+                                <polyline points="21 15 16 10 5 21"/>
                             </svg>
-                            Upload Image
+                            Photo
                         </button>
-                        <button class="tab-btn" data-tab="hash">
-                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <button class="tab-btn" data-tab="hash" type="button" role="tab">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                                 <line x1="4" y1="9" x2="20" y2="9"/>
                                 <line x1="4" y1="15" x2="20" y2="15"/>
                                 <line x1="10" y1="3" x2="8" y2="21"/>
                                 <line x1="16" y1="3" x2="14" y2="21"/>
                             </svg>
-                            Verify by Hash
+                            Fingerprint
                         </button>
                     </div>
 
-                    <!-- Upload Tab -->
-                    <div class="tab-content active" id="uploadTab">
-                        <div class="upload-zone" id="verifyUploadZone">
+                    <div class="tab-content active" id="uploadTab" role="tabpanel">
+                        <div class="upload-zone" id="verifyUploadZone" role="button" tabindex="0" aria-label="Choose an image to check">
                             <input type="file" id="verifyFileInput" accept="image/*" hidden>
                             <div class="upload-content" id="verifyUploadContent">
                                 <div class="upload-icon">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                                        <polyline points="22 4 12 14.01 9 11.01"/>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                        <polyline points="9 12 11 14 15 10"/>
                                     </svg>
                                 </div>
-                                <h3 class="upload-title">Drop image to verify</h3>
-                                <p class="upload-text">or click to browse</p>
-                                <p class="upload-hint">We'll check if this image is registered on the blockchain</p>
+                                <h2 class="upload-title">Drop a photo to check</h2>
+                                <p class="upload-text">or click to choose a file</p>
+                                <p class="upload-hint">We&apos;ll compare it with the blockchain record</p>
                             </div>
                             <div class="image-preview" id="verifyImagePreview" style="display: none;">
-                                <img id="verifyPreviewImg" alt="Preview">
-                                <button class="btn-remove" id="verifyRemoveImage">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <img id="verifyPreviewImg" alt="Selected photo preview">
+                                <button class="btn-remove" id="verifyRemoveImage" type="button" aria-label="Remove photo">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                                         <line x1="18" y1="6" x2="6" y2="18"/>
                                         <line x1="6" y1="6" x2="18" y2="18"/>
                                     </svg>
@@ -102,43 +101,35 @@
                         </div>
 
                         <div class="upload-actions">
-                            <button class="btn btn-primary btn-large btn-full" id="verifyBtn" disabled>
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                                    <polyline points="22 4 12 14.01 9 11.01"/>
-                                </svg>
-                                <span>Verify Image</span>
+                            <button class="btn btn-primary btn-large btn-full" id="verifyBtn" type="button" disabled>
+                                <span>Check Photo</span>
                             </button>
                         </div>
                     </div>
 
-                    <!-- Hash Tab -->
-                    <div class="tab-content" id="hashTab">
+                    <div class="tab-content" id="hashTab" role="tabpanel">
                         <div class="hash-input-container">
-                            <label class="input-label">Image Hash (SHA-256)</label>
-                            <input 
-                                type="text" 
-                                id="hashInput" 
-                                class="hash-input" 
-                                placeholder="Enter 64-character SHA-256 hash..."
+                            <label class="input-label" for="hashInput">Photo fingerprint (SHA-256)</label>
+                            <input
+                                type="text"
+                                id="hashInput"
+                                class="hash-input"
+                                placeholder="Paste the 64-character code"
                                 maxlength="64"
+                                autocomplete="off"
+                                spellcheck="false"
                             >
-                            <p class="input-hint">Paste the SHA-256 hash you want to verify</p>
+                            <p class="input-hint">You can find this code on the certificate or in History.</p>
                         </div>
 
                         <div class="upload-actions">
-                            <button class="btn btn-primary btn-large btn-full" id="verifyHashBtn" disabled>
-                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                                    <polyline points="22 4 12 14.01 9 11.01"/>
-                                </svg>
-                                <span>Verify Hash</span>
+                            <button class="btn btn-primary btn-large btn-full" id="verifyHashBtn" type="button" disabled>
+                                <span>Check Fingerprint</span>
                             </button>
                         </div>
                     </div>
 
-                    <!-- Progress Bar -->
-                    <div class="progress-bar" id="verifyProgressBar" style="display: none;">
+                    <div class="progress-bar" id="verifyProgressBar" style="display: none;" role="progressbar" aria-label="Verification progress">
                         <div class="progress-fill" id="verifyProgressFill"></div>
                     </div>
                 </div>
@@ -155,11 +146,9 @@
                     <div class="info-security">
                         <h4>ðŸ” Â What We Check</h4>
                         <ul>
-                            <li>Blockchain registration status</li>
-                            <li>Original owner address</li>
-                            <li>Registration timestamp</li>
-                            <li>Image tampering detection</li>
-                            <li>Hash comparison</li>
+                            <li>Is it on the blockchain?</li>
+                            <li>Who registered it, and when</li>
+                            <li>Has it been edited?</li>
                         </ul>
                     </div>
 
@@ -187,25 +176,22 @@
                             <li>From a different source</li>
                         </ul>
                     </div>
-                </div>
+                </aside>
             </div>
 
-            <!-- Verification Result Card -->
-            <div class="result-card glass-card" id="verifyResultCard" style="display: none;">
+            <section class="result-card glass-card" id="verifyResultCard" style="display: none;" aria-live="polite">
                 <div class="result-header">
                     <div class="result-icon success" id="verifyResultIcon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
                             <polyline points="22 4 12 14.01 9 11.01"/>
                         </svg>
                     </div>
-                    <h3 class="result-title" id="verifyResultTitle">Verification Result</h3>
+                    <h2 class="result-title" id="verifyResultTitle">Verification Result</h2>
                     <p class="result-message" id="verifyResultMessage">Checking blockchain...</p>
                 </div>
 
-                <div class="result-details" id="verifyResultDetails">
-                    <!-- Details will be populated by JavaScript -->
-                </div>
+                <div class="result-details" id="verifyResultDetails"></div>
 
                 <div class="result-actions">
                     <button class="btn btn-secondary" id="downloadVerifyCertificate" style="display: none;">
@@ -232,23 +218,17 @@
                         </svg>
                         Verify Another
                     </button>
-                    <a href="/upload" class="btn btn-primary">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="17 8 12 3 7 8"/>
-                            <line x1="12" y1="3" x2="12" y2="15"/>
-                        </svg>
-                        Register Image
+                    <a href="/upload" class="btn btn-secondary">
+                        Protect a Photo
                     </a>
                 </div>
-            </div>
+            </section>
         </div>
-    </section>
+    </main>
 
-    <!-- Toast Notification -->
-    <div class="toast" id="toast">
+    <div class="toast" id="toast" role="status" aria-live="polite">
         <div class="toast-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                 <circle cx="12" cy="12" r="10"/>
                 <line x1="12" y1="8" x2="12" y2="12"/>
                 <line x1="12" y1="16" x2="12.01" y2="16"/>
