@@ -82,6 +82,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    verifyUploadZone.addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target === verifyUploadZone) {
+            e.preventDefault();
+            verifyFileInput.click();
+        }
+    });
+
     // File input change
     verifyFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
@@ -337,9 +344,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="detail-value ${detail.class || ''}">${detail.value}</span>
                 </div>
             `).join('') + `
-                <div class="detail-item" style="background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.2);">
-                    <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">
-                        <strong>Tip:</strong> If you own this image, you can register it on the blockchain via the Register page to secure authenticity and copyright proof.
+                <div class="detail-item">
+                    <p class="detail-note">
+                        <strong>Tip:</strong> If this is your photo, register it on the Upload page to secure proof of authenticity and ownership.
                     </p>
                 </div>
             `;

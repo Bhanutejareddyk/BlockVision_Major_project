@@ -32,6 +32,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    uploadZone.addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target === uploadZone) {
+            e.preventDefault();
+            fileInput.click();
+        }
+    });
+
     // File input change
     fileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
