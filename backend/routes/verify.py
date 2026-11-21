@@ -12,6 +12,7 @@ from utils.hashing import (
 from utils.image_handler import ImageHandler
 from utils.steganography import SteganographyHandler
 from utils.blockchain import get_blockchain
+from utils.ipfs import get_ipfs_url
 from config import Config
 
 verify_bp = Blueprint('verify', __name__)
@@ -56,10 +57,39 @@ def verify_image():
             image_details = blockchain.get_image_details(image_hash)
             
             if image_details.get('exists'):
+                cid = image_details.get('ipfsCID') or image_details.get('ipfs_cid') or ''
+                is_revoked = bool(image_details.get('isRevoked', False))
+
+                if is_revoked:
+                    return jsonify({
+                        'success': True,
+                        'verified': False,
+                        'authentic': False,
+                        'status': 'REVOKED',
+                        'isRevoked': True,
+                        'message': 'This image registration was revoked by owner',
+                        'image_hash': image_hash,
+                        'perceptual_hash': perceptual_hash,
+                        'owner': image_details['owner'],
+                        'timestamp': image_details['timestamp'],
+                        'registration_date': datetime.fromtimestamp(image_details['timestamp']).isoformat(),
+                        'original_filename': image_details['file_name'],
+                        'uploaded_filename': file.filename,
+                        'file_size': image_info.get('file_size', 0),
+                        'dimensions': f"{image_info.get('width', 0)}x{image_info.get('height', 0)}",
+                        'format': image_info.get('format', 'Unknown'),
+                        'ipfsCID': cid,
+                        'ipfsUrl': get_ipfs_url(cid) if cid else "",
+                        'watermark_detected': has_wm,
+                        'embedded_watermark': wm_data if has_wm else None
+                    }), 200
+
                 return jsonify({
                     'success': True,
                     'verified': True,
                     'authentic': True,
+                    'status': 'VERIFIED',
+                    'isRevoked': False,
                     'message': 'Image is verified and authentic (100% cryptographic match)',
                     'image_hash': image_hash,
                     'perceptual_hash': perceptual_hash,
@@ -71,6 +101,8 @@ def verify_image():
                     'file_size': image_info.get('file_size', 0),
                     'dimensions': f"{image_info.get('width', 0)}x{image_info.get('height', 0)}",
                     'format': image_info.get('format', 'Unknown'),
+                    'ipfsCID': cid,
+                    'ipfsUrl': get_ipfs_url(cid) if cid else "",
                     'watermark_detected': has_wm,
                     'embedded_watermark': wm_data if has_wm else None
                 }), 200
@@ -79,6 +111,8 @@ def verify_image():
                     'success': True,
                     'verified': False,
                     'authentic': False,
+                    'status': 'NOT_FOUND',
+                    'isRevoked': False,
                     'message': 'Image not found on blockchain. This image is not registered.',
                     'image_hash': image_hash,
                     'perceptual_hash': perceptual_hash,
@@ -111,22 +145,48 @@ def verify_hash():
         image_details = blockchain.get_image_details(image_hash)
         
         if image_details.get('exists'):
+            cid = image_details.get('ipfsCID') or image_details.get('ipfs_cid') or ''
+            is_revoked = bool(image_details.get('isRevoked', False))
+
+            if is_revoked:
+                return jsonify({
+                    'success': True,
+                    'verified': False,
+                    'authentic': False,
+                    'status': 'REVOKED',
+                    'isRevoked': True,
+                    'message': 'This image registration was revoked by owner',
+                    'image_hash': image_hash,
+                    'owner': image_details['owner'],
+                    'timestamp': image_details['timestamp'],
+                    'registration_date': datetime.fromtimestamp(image_details['timestamp']).isoformat(),
+                    'original_filename': image_details['file_name'],
+                    'ipfsCID': cid,
+                    'ipfsUrl': get_ipfs_url(cid) if cid else ""
+                }), 200
+
             return jsonify({
                 'success': True,
                 'verified': True,
                 'authentic': True,
+                'status': 'VERIFIED',
+                'isRevoked': False,
                 'message': 'Hash verified on blockchain',
                 'image_hash': image_hash,
                 'owner': image_details['owner'],
                 'timestamp': image_details['timestamp'],
                 'registration_date': datetime.fromtimestamp(image_details['timestamp']).isoformat(),
-                'original_filename': image_details['file_name']
+                'original_filename': image_details['file_name'],
+                'ipfsCID': cid,
+                'ipfsUrl': get_ipfs_url(cid) if cid else ""
             }), 200
         else:
             return jsonify({
                 'success': True,
                 'verified': False,
                 'authentic': False,
+                'status': 'NOT_FOUND',
+                'isRevoked': False,
                 'message': 'Hash not found on blockchain',
                 'image_hash': image_hash
             }), 200

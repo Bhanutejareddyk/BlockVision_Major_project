@@ -42,6 +42,7 @@
                         <span>History</span>
                     </a>
                 </div>
+                <div class="nav-auth" id="navAuth"></div>
             </div>
         </div>
     </nav>
@@ -194,6 +195,14 @@
                 <div class="result-details" id="verifyResultDetails"></div>
 
                 <div class="result-actions">
+                    <a class="btn btn-primary" id="btnViewIpfs" href="#" target="_blank" rel="noopener noreferrer" style="display: none;">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                            <polyline points="15 3 21 3 21 9"/>
+                            <line x1="10" y1="14" x2="21" y2="3"/>
+                        </svg>
+                        View Original on IPFS
+                    </a>
                     <button class="btn btn-secondary" id="downloadVerifyCertificate" style="display: none;">
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -242,6 +251,7 @@
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="/js/auth.js"></script>
     <script src="/js/main.js"></script>
     <script src="/js/certificate.js"></script>
     <script src="/js/verify.js"></script>

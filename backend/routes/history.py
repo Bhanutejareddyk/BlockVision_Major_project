@@ -1,10 +1,49 @@
 from datetime import datetime
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from web3 import Web3
 from utils.blockchain import get_blockchain
+from utils.auth import require_auth
 from config import Config
 
 history_bp = Blueprint('history', __name__)
+
+
+@history_bp.route('/api/my-images', methods=['GET'])
+@require_auth
+def get_my_images():
+    """Get all registered images belonging to the authenticated user's wallet"""
+    try:
+        user_address = g.wallet_address
+        blockchain = get_blockchain()
+        image_hashes = blockchain.get_user_images(user_address)
+
+        images = []
+        for image_hash in image_hashes:
+            details = blockchain.get_image_details(image_hash)
+            if details.get('exists'):
+                cid = details.get('ipfsCID') or details.get('ipfs_cid') or ''
+                is_rev = bool(details.get('isRevoked', False))
+                images.append({
+                    'image_hash': image_hash,
+                    'owner': details['owner'],
+                    'timestamp': details['timestamp'],
+                    'registration_date': datetime.fromtimestamp(details['timestamp']).isoformat(),
+                    'filename': details['file_name'],
+                    'ipfsCID': cid,
+                    'ipfsUrl': details.get('ipfsUrl', ''),
+                    'isRevoked': is_rev,
+                    'status': 'Revoked' if is_rev else 'Active'
+                })
+
+        return jsonify({
+            'success': True,
+            'wallet': user_address,
+            'total_images': len(images),
+            'images': images
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': f'Failed to fetch user images: {str(e)}'}), 500
 
 
 @history_bp.route('/api/history/<address>', methods=['GET'])
@@ -22,12 +61,18 @@ def get_user_history(address):
         for image_hash in image_hashes:
             details = blockchain.get_image_details(image_hash)
             if details.get('exists'):
+                cid = details.get('ipfsCID') or details.get('ipfs_cid') or ''
+                is_rev = bool(details.get('isRevoked', False))
                 images.append({
                     'image_hash': image_hash,
                     'owner': details['owner'],
                     'timestamp': details['timestamp'],
                     'registration_date': datetime.fromtimestamp(details['timestamp']).isoformat(),
-                    'filename': details['file_name']
+                    'filename': details['file_name'],
+                    'ipfsCID': cid,
+                    'ipfsUrl': details.get('ipfsUrl', ''),
+                    'isRevoked': is_rev,
+                    'status': 'Revoked' if is_rev else 'Active'
                 })
 
         return jsonify({
@@ -102,12 +147,18 @@ def get_all_images():
 
                 if details.get('exists'):
                     if details['timestamp'] >= cutoff_timestamp:
+                        cid = details.get('ipfsCID') or details.get('ipfs_cid') or ''
+                        is_rev = bool(details.get('isRevoked', False))
                         images.append({
                             'image_hash': image_hash,
                             'owner': details['owner'],
                             'timestamp': details['timestamp'],
                             'registration_date': datetime.fromtimestamp(details['timestamp']).isoformat(),
-                            'filename': details['file_name']
+                            'filename': details['file_name'],
+                            'ipfsCID': cid,
+                            'ipfsUrl': details.get('ipfsUrl', ''),
+                            'isRevoked': is_rev,
+                            'status': 'Revoked' if is_rev else 'Active'
                         })
             except Exception as item_err:
                 print(f"Error fetching image at index {idx}: {item_err}")

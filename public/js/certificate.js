@@ -29,7 +29,8 @@ const CertificateGenerator = {
             format: 'a4'
         });
 
-        const isVerified = data.isVerified !== false;
+        const isRevoked = Boolean(data.isRevoked) || data.status === 'REVOKED';
+        const isVerified = data.isVerified !== false && !isRevoked;
 
         // Corporate Minimal Color Palette (Strictly clean, no decorative golds/ribbons)
         const cNavy = [15, 23, 42];       // #0f172a (Primary dark heading)
@@ -57,7 +58,10 @@ const CertificateGenerator = {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(14.5);
         doc.setTextColor(...cNavy);
-        doc.text('BLOCKCHAIN IMAGE VERIFICATION CERTIFICATE', marginL, 30);
+        const headerTitle = isRevoked 
+            ? 'BLOCKCHAIN IMAGE REVOCATION REPORT' 
+            : 'BLOCKCHAIN IMAGE VERIFICATION CERTIFICATE';
+        doc.text(headerTitle, marginL, 30);
 
         // Status Indicator Badge (Top Right)
         const badgeW = 48;
@@ -65,7 +69,15 @@ const CertificateGenerator = {
         const badgeX = marginR - badgeW;
         const badgeY = 22;
 
-        if (isVerified) {
+        if (isRevoked) {
+            doc.setFillColor(...cRedBg);
+            doc.setDrawColor(...cRed);
+            doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.5, 1.5, 'FD');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7.5);
+            doc.setTextColor(...cRed);
+            doc.text('REGISTRATION REVOKED', badgeX + (badgeW / 2), badgeY + 6, { align: 'center' });
+        } else if (isVerified) {
             doc.setFillColor(...cBlueBg);
             doc.setDrawColor(...cBlue);
             doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.5, 1.5, 'FD');
@@ -99,7 +111,7 @@ const CertificateGenerator = {
 
         y += 5;
         const metaBoxY = y;
-        const metaBoxH = 75;
+        const metaBoxH = 84;
         doc.setFillColor(...cBoxBg);
         doc.setDrawColor(...cBorder);
         doc.roundedRect(marginL, metaBoxY, contentW, metaBoxH, 1.5, 1.5, 'FD');
@@ -139,7 +151,7 @@ const CertificateGenerator = {
         doc.text('Blockchain Network:', col1LabelX, rowY);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(...cNavy);
-        doc.text(data.network || 'Ethereum (Ganache / Cloud Node)', col1ValX, rowY);
+        doc.text(data.network || 'Ethereum Sepolia Testnet (Chain ID: 11155111)', col1ValX, rowY);
 
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(...cSlate);
@@ -196,7 +208,11 @@ const CertificateGenerator = {
         const txHash = isVerified 
             ? (data.transaction_hash || '0xa8635109522f0c86162d5f60e9e3c5c5fe43d62747ba53d0087ad5271452a78d')
             : 'Not Available - Asset has not been recorded on blockchain';
-        doc.text(txHash, col1LabelX, rowY);
+        if (isVerified && txHash.startsWith('0x') && typeof doc.textWithLink === 'function') {
+            doc.textWithLink(txHash, col1LabelX, rowY, { url: `https://sepolia.etherscan.io/tx/${txHash}` });
+        } else {
+            doc.text(txHash, col1LabelX, rowY);
+        }
 
         rowY += 6.5;
         doc.setFont('helvetica', 'bold');
@@ -211,12 +227,39 @@ const CertificateGenerator = {
         const ownerAddr = isVerified 
             ? (data.owner || '0x3D56743Dc94A78521c1971cD5dD0E44f2ecBD7F2')
             : 'Unassigned - No cryptographic ownership claim on record';
-        doc.text(ownerAddr, col1LabelX, rowY);
+        const ipfsCid = data.ipfsCID || data.ipfs_cid || '';
+        const ipfsUrl = data.ipfsUrl || (ipfsCid ? `https://gateway.pinata.cloud/ipfs/${ipfsCid}` : '');
+        if (isVerified && ownerAddr.startsWith('0x') && typeof doc.textWithLink === 'function') {
+            doc.textWithLink(ownerAddr, col1LabelX, rowY, { url: `https://sepolia.etherscan.io/address/${ownerAddr}` });
+        } else {
+            doc.text(ownerAddr, col1LabelX, rowY);
+        }
+
+        rowY += 6.5;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(...cSlate);
+        doc.text('IPFS Decentralized Storage:', col1LabelX, rowY);
+
+        rowY += 4.5;
+        doc.setFont('courier', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...cNavy);
+        const ipfsCid = data.ipfsCID || data.ipfs_cid || '';
+        const ipfsUrl = data.ipfsUrl || (ipfsCid ? `https://gateway.pinata.cloud/ipfs/${ipfsCid}` : '');
+        const ipfsLine = ipfsCid 
+            ? `IPFS CID: ${ipfsCid}  |  IPFS URL: ${ipfsUrl}`
+            : 'IPFS: Not uploaded';
+        if (ipfsCid && typeof doc.textWithLink === 'function') {
+            doc.textWithLink(ipfsLine, col1LabelX, rowY, { url: ipfsUrl });
+        } else {
+            doc.text(ipfsLine, col1LabelX, rowY);
+        }
 
         // ==========================================
         // 3. CERTIFICATE STATEMENT OF AUTHENTICITY
         // ==========================================
-        y = metaBoxY + metaBoxH + 9;
+        y = metaBoxY + metaBoxH + 6;
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9.5);
         doc.setTextColor(...cNavy);
@@ -227,9 +270,11 @@ const CertificateGenerator = {
         doc.setFontSize(8.5);
         doc.setTextColor(...cSlate);
 
-        const statement = isVerified
-            ? 'This document certifies that the cryptographic SHA-256 digest of this image has been immutably registered on the Ethereum blockchain. Any byte-level alteration to the original pixels, format headers, or embedded metadata will produce a mismatched hash, permanently invalidating its authenticity. Provenance is verifiable directly through smart contract view calls.'
-            : 'This audit document certifies that an authenticity verification was conducted against the distributed blockchain ledger. The digital image failed validation because its cryptographic SHA-256 digest does not match any registered asset in the smart contract registry. BlockVision cannot attest to the originality, ownership, or integrity of this file.';
+        const statement = isRevoked
+            ? 'This audit document certifies that the registration previously recorded for this digital asset on the Ethereum blockchain has been officially REVOKED by its verified owner. The cryptographic proof of authenticity and ownership claim for this SHA-256 fingerprint is no longer active, valid, or recognized.'
+            : (isVerified
+                ? 'This document certifies that the cryptographic SHA-256 digest of this image has been immutably registered on the Ethereum blockchain. Any byte-level alteration to the original pixels, format headers, or embedded metadata will produce a mismatched hash, permanently invalidating its authenticity. Provenance is verifiable directly through smart contract view calls.'
+                : 'This audit document certifies that an authenticity verification was conducted against the distributed blockchain ledger. The digital image failed validation because its cryptographic SHA-256 digest does not match any registered asset in the smart contract registry. BlockVision cannot attest to the originality, ownership, or integrity of this file.');
 
         const statementLines = doc.splitTextToSize(statement, contentW);
         doc.text(statementLines, marginL, y);
@@ -240,15 +285,25 @@ const CertificateGenerator = {
         y += (statementLines.length * 4.2) + 6;
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9.5);
-        doc.setTextColor(isVerified ? cNavy[0] : cRed[0], isVerified ? cNavy[1] : cRed[1], isVerified ? cNavy[2] : cRed[2]);
-        doc.text(isVerified ? 'VERIFICATION & SECURITY PROTOCOLS' : 'KEY REASONS FOR FAILED VERIFICATION', marginL, y);
+        const listHeaderColor = isRevoked ? cRed : (isVerified ? cNavy : cRed);
+        doc.setTextColor(...listHeaderColor);
+        const listTitle = isRevoked 
+            ? 'REVOCATION AUDIT FINDINGS & STATUS' 
+            : (isVerified ? 'VERIFICATION & SECURITY PROTOCOLS' : 'KEY REASONS FOR FAILED VERIFICATION');
+        doc.text(listTitle, marginL, y);
 
         y += 5.5;
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(...cSlate);
 
-        const items = isVerified ? [
+        const items = isRevoked ? [
+            ['1. Owner-Initiated Revocation:', 'The registered owner signed and executed a contract transaction permanently revoking this registration.'],
+            ['2. Provenance Invalidation:', 'Smart contract view functions now return isRevoked = true, preventing verified authenticity status.'],
+            ['3. Re-Registration Safeguards:', 'Re-registration of this asset requires explicit authentication from an authorized wallet.'],
+            ['4. Tamper & Duplicate Protection:', 'The SHA-256 and perceptual dHash records remain indexed to prevent fraudulent claims.'],
+            ['5. Immutable Audit Trail:', 'The revocation event is permanently sealed in the Ethereum blockchain transaction logs.']
+        ] : (isVerified ? [
             ['1. SHA-256 Cryptographic Hashing:', 'Collision-resistant 256-bit one-way digest ensuring bit-for-bit file integrity.'],
             ['2. Immutable Ledger Notarization:', 'Permanent decentralized storage within the ImageVerification smart contract.'],
             ['3. Perceptual dHash Tamper Detection:', '64-bit gradient analysis detecting structural visual manipulation.'],
@@ -260,7 +315,7 @@ const CertificateGenerator = {
             ['3. Unregistered Digital Asset:', 'The image creator or copyright holder has not yet notarized this image on the blockchain.'],
             ['4. Unverifiable Provenance:', 'No transaction timestamp, block height, or signer wallet address exists for this file.'],
             ['5. Inconclusive Watermark:', 'Steganographic LSB analysis did not detect any verifiable blockchain transaction signature.']
-        ];
+        ]);
 
         items.forEach(([title, desc]) => {
             doc.setFont('helvetica', 'bold');
@@ -392,7 +447,8 @@ const CertificateGenerator = {
      */
     print(data) {
         if (!data) return;
-        const isVerified = data.isVerified !== false;
+        const isRevoked = Boolean(data.isRevoked) || data.status === 'REVOKED';
+        const isVerified = data.isVerified !== false && !isRevoked;
         const baseUrl = window.location.origin || 'https://blockvision-nu.vercel.app';
         const hash = data.image_hash || 'N/A';
         const verifyUrl = `${baseUrl}/verify?hash=${hash}`;
@@ -402,11 +458,13 @@ const CertificateGenerator = {
             : (data.registration_date || new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC');
         const txHash = isVerified 
             ? (data.transaction_hash || '0xa8635109522f0c86162d5f60e9e3c5c5fe43d62747ba53d0087ad5271452a78d')
-            : 'Not Available - Asset has not been recorded on blockchain';
-        const blockNum = isVerified ? String(data.block_number || '#8 (Confirmed)') : 'N/A (Unrecorded)';
-        const ownerAddr = isVerified 
+            : (isRevoked ? (data.transaction_hash || 'Revocation record on Sepolia testnet') : 'Not Available - Asset has not been recorded on blockchain');
+        const blockNum = isVerified ? String(data.block_number || '#8 (Confirmed)') : (isRevoked ? String(data.block_number || 'Confirmed') : 'N/A (Unrecorded)');
+        const ownerAddr = isVerified || isRevoked
             ? (data.owner || '0x3D56743Dc94A78521c1971cD5dD0E44f2ecBD7F2')
             : 'Unassigned - No cryptographic ownership claim on record';
+        const ipfsCid = data.ipfsCID || data.ipfs_cid || '';
+        const ipfsUrl = data.ipfsUrl || (ipfsCid ? `https://gateway.pinata.cloud/ipfs/${ipfsCid}` : '');
 
         const printWindow = window.open('', '_blank');
         if (!printWindow) {
@@ -414,13 +472,25 @@ const CertificateGenerator = {
             return;
         }
 
-        const items = isVerified ? [
+        const items = isRevoked ? [
+            ['1. Owner-Initiated Revocation:', 'The registered owner signed and executed a contract transaction permanently revoking this registration.'],
+            ['2. Provenance Invalidation:', 'Smart contract view functions now return isRevoked = true, preventing verified authenticity status.'],
+            ['3. Re-Registration Safeguards:', 'Re-registration of this asset requires explicit authentication from an authorized wallet.'],
+            ['4. Tamper & Duplicate Protection:', 'The SHA-256 and perceptual dHash records remain indexed to prevent fraudulent claims.'],
+            ['5. Immutable Audit Trail:', 'The revocation event is permanently sealed in the Ethereum blockchain transaction logs.']
+        ] : (isVerified ? [
             ['1. SHA-256 Cryptographic Hashing:', 'Collision-resistant 256-bit one-way digest ensuring bit-for-bit file integrity.'],
             ['2. Immutable Ledger Notarization:', 'Permanent decentralized storage within the ImageVerification smart contract.'],
             ['3. Perceptual dHash Tamper Detection:', '64-bit gradient analysis detecting structural visual manipulation.'],
             ['4. Steganographic LSB Watermarking:', 'Least Significant Bit digital signature embedded directly into pixel channels.'],
             ['5. Zero-Gas Decentralized Verification:', 'Direct view-function queries enabling trustless provenance audits without gas fees.']
         ] : [
+            ['1. Cryptographic Hash Mismatch:', 'The SHA-256 digest does not match any record in the smart contract registry.'],
+            ['2. Potential File Alteration:', 'Even a single pixel edit, crop, compression, or metadata change invalidates the hash.'],
+            ['3. Unregistered Digital Asset:', 'The image creator or copyright holder has not yet notarized this image on the blockchain.'],
+            ['4. Unverifiable Provenance:', 'No transaction timestamp, block height, or signer wallet address exists for this file.'],
+            ['5. Inconclusive Watermark:', 'Steganographic LSB analysis did not detect any verifiable blockchain transaction signature.']
+        ]);
             ['1. Cryptographic Hash Mismatch:', 'The SHA-256 digest does not match any record in the smart contract registry.'],
             ['2. Potential File Alteration:', 'Even a single pixel edit, crop, compression, or metadata change invalidates the hash.'],
             ['3. Unregistered Digital Asset:', 'The image creator or copyright holder has not yet notarized this image on the blockchain.'],
@@ -616,10 +686,12 @@ const CertificateGenerator = {
     <div class="header">
         <div>
             <div class="eyebrow">BLOCKVISION | DIGITAL ASSET PROVENANCE SYSTEM</div>
-            <h1 class="title">BLOCKCHAIN IMAGE VERIFICATION CERTIFICATE</h1>
+            <h1 class="title">${isRevoked ? 'BLOCKCHAIN IMAGE REVOCATION REPORT' : 'BLOCKCHAIN IMAGE VERIFICATION CERTIFICATE'}</h1>
         </div>
         <div>
-            <span class="status-badge">${isVerified ? 'VERIFIED & AUTHENTIC' : 'NOT VERIFIED / FAILED'}</span>
+            <span class="status-badge" style="border-color: ${isRevoked ? '#dc2626' : (isVerified ? '#2563eb' : '#dc2626')}; background: ${isRevoked ? '#fef2f2' : (isVerified ? '#eff6ff' : '#fef2f2')}; color: ${isRevoked ? '#b91c1c' : (isVerified ? '#1d4ed8' : '#b91c1c')};">
+                ${isRevoked ? 'REGISTRATION REVOKED' : (isVerified ? 'VERIFIED & AUTHENTIC' : 'NOT VERIFIED / FAILED')}
+            </span>
         </div>
     </div>
 
@@ -628,7 +700,7 @@ const CertificateGenerator = {
         <div class="grid-2">
             <div><span class="field-label">Image Filename:</span> <span class="field-val">${fname}</span></div>
             <div><span class="field-label">Audit Timestamp:</span> <span class="field-val">${dateStr}</span></div>
-            <div><span class="field-label">Blockchain Network:</span> <span class="field-val">${data.network || 'Ethereum (Ganache / Cloud Node)'}</span></div>
+            <div><span class="field-label">Blockchain Network:</span> <span class="field-val">${data.network || 'Ethereum Sepolia Testnet (Chain ID: 11155111)'}</span></div>
             <div><span class="field-label">Encryption Status:</span> <span class="field-val">${data.encrypted ? 'AES-256 Enabled' : 'Standard (Unencrypted)'}</span></div>
             <div><span class="field-label">Block Number:</span> <span class="field-val">${blockNum}</span></div>
             <div><span class="field-label">Ledger Verification:</span> <strong style="color: ${isVerified ? '#2563eb' : '#dc2626'};">${isVerified ? 'Confirmed On-Chain' : 'Record Not Found'}</strong></div>
@@ -641,12 +713,21 @@ const CertificateGenerator = {
 
         <div class="hash-group">
             <div class="hash-label">Blockchain Transaction Hash (TxID):</div>
-            <div class="hash-code">${txHash}</div>
+            <div class="hash-code">${isVerified && txHash.startsWith('0x') ? `<a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline;">${txHash}</a>` : txHash}</div>
         </div>
 
         <div class="hash-group" style="margin-bottom: 0;">
             <div class="hash-label">Owner / Registrant Wallet Address:</div>
-            <div class="hash-code">${ownerAddr}</div>
+            <div class="hash-code">${isVerified && ownerAddr.startsWith('0x') ? `<a href="https://sepolia.etherscan.io/address/${ownerAddr}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline;">${ownerAddr}</a>` : ownerAddr}</div>
+        </div>
+
+        <div class="hash-group" style="margin-top: 8px; padding-top: 6px;">
+            <div class="hash-label">IPFS Decentralized Storage:</div>
+            <div class="hash-code" style="font-size: 10px;">
+                ${ipfsCid 
+                    ? `IPFS CID: <strong>${ipfsCid}</strong> &nbsp;|&nbsp; IPFS URL: <a href="${ipfsUrl}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline;">${ipfsUrl}</a>` 
+                    : 'IPFS: Not uploaded'}
+            </div>
         </div>
     </div>
 

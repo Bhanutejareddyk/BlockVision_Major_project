@@ -36,12 +36,22 @@ class ConfigMeta(type):
     @property
     def ETHEREUM_NODE_URL(cls):
         load_app_env()
-        return os.getenv('ETHEREUM_NODE_URL', 'http://127.0.0.1:7545')
+        url = os.getenv('ETHEREUM_NODE_URL', 'https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}')
+        if '${ALCHEMY_API_KEY}' in url:
+            alchemy_key = os.getenv('ALCHEMY_API_KEY', '').strip()
+            if alchemy_key and alchemy_key != 'YOUR_ALCHEMY_API_KEY':
+                url = url.replace('${ALCHEMY_API_KEY}', alchemy_key)
+        return url
+    
+    @property
+    def CHAIN_ID(cls):
+        load_app_env()
+        return int(os.getenv('CHAIN_ID', '11155111'))
     
     @property
     def NETWORK_ID(cls):
         load_app_env()
-        return int(os.getenv('NETWORK_ID', 5777))
+        return int(os.getenv('NETWORK_ID', os.getenv('CHAIN_ID', '11155111')))
     
     @property
     def FLASK_PORT(cls):
@@ -52,6 +62,10 @@ class ConfigMeta(type):
 class Config(metaclass=ConfigMeta):
     """Application configuration with dynamic environment reloading"""
     
+    # Blockchain Network Configuration
+    CHAIN_ID = int(os.getenv('CHAIN_ID', '11155111'))
+    NETWORK_ID = int(os.getenv('NETWORK_ID', '11155111'))
+
     # Flask Configuration
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-blockvision-2.0')
     FLASK_ENV = os.getenv('FLASK_ENV', 'development')

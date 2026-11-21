@@ -251,7 +251,61 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Display result
     function displayResult(data) {
-        if (data.verified && data.authentic) {
+        const isRevoked = data.status === 'REVOKED' || Boolean(data.isRevoked);
+
+        if (isRevoked) {
+            // Image is REVOKED
+            verifyResultTitle.textContent = 'Registration Revoked';
+            verifyResultMessage.innerHTML = '<span style="color: #ff3b30; font-weight: 700; font-size: 15px;">REVOKED - This registration was revoked by owner.</span>';
+
+            verifyResultIcon.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="#ff3b30" width="32" height="32">
+                    <circle cx="12" cy="12" r="10" stroke-width="2"/>
+                    <line x1="15" y1="9" x2="9" y2="15" stroke-width="2"/>
+                    <line x1="9" y1="9" x2="15" y2="15" stroke-width="2"/>
+                </svg>
+            `;
+            verifyResultIcon.classList.remove('success');
+            verifyResultIcon.classList.add('error');
+
+            const details = [
+                { 
+                    label: 'Status', 
+                    value: '<span class="status-badge" style="background: rgba(255, 59, 48, 0.15); color: #ff3b30; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255, 59, 48, 0.4);">REVOKED BY OWNER</span>' 
+                },
+                { 
+                    label: 'Warning', 
+                    value: '<span style="color: #ff3b30; font-weight: 600;">This registration was officially cancelled. Any certificate generated for this hash is null and void.</span>' 
+                },
+                { label: 'Image Hash (SHA-256)', value: data.image_hash, class: 'hash' },
+                { 
+                    label: 'Registered Owner', 
+                    value: data.owner && data.owner.startsWith('0x') 
+                        ? `<a href="https://sepolia.etherscan.io/address/${data.owner}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline;">${data.owner}</a>` 
+                        : (data.owner || 'N/A'), 
+                    class: 'hash' 
+                },
+                { label: 'Original Filename', value: data.original_filename || 'Unknown' },
+                { label: 'Registration Date', value: data.timestamp ? Utils.formatDate(data.timestamp) : (data.registration_date || 'N/A') }
+            ];
+
+            const ipfsCid = data.ipfsCID || data.ipfs_cid;
+            if (ipfsCid) {
+                const ipfsUrl = data.ipfsUrl || `https://gateway.pinata.cloud/ipfs/${ipfsCid}`;
+                details.push({
+                    label: 'IPFS Storage',
+                    value: `<a href="${ipfsUrl}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline; font-family: monospace;">${ipfsCid}</a>`
+                });
+            }
+
+            verifyResultDetails.innerHTML = details.map(detail => `
+                <div class="detail-item">
+                    <span class="detail-label">${detail.label}</span>
+                    <span class="detail-value ${detail.class || ''}">${detail.value}</span>
+                </div>
+            `).join('');
+
+        } else if (data.verified && data.authentic) {
             // Image is verified
             verifyResultTitle.textContent = 'Verified & Authentic';
             verifyResultMessage.textContent = 'This image is registered on the blockchain with cryptographic authenticity';
@@ -268,7 +322,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const details = [
                 { label: 'Status', value: '<span class="status-badge verified">Verified</span>' },
                 { label: 'Image Hash (SHA-256)', value: data.image_hash, class: 'hash' },
-                { label: 'Owner Address', value: data.owner, class: 'hash' },
+                { 
+                    label: 'Owner Address', 
+                    value: data.owner && data.owner.startsWith('0x') 
+                        ? `<a href="https://sepolia.etherscan.io/address/${data.owner}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline;">${data.owner}</a>` 
+                        : data.owner, 
+                    class: 'hash' 
+                },
                 { label: 'Registration Date', value: data.timestamp ? Utils.formatDate(data.timestamp) : data.registration_date },
                 { label: 'Original Filename', value: data.original_filename }
             ];
@@ -301,6 +361,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (data.format) {
                 details.push({ label: 'Format', value: data.format });
+            }
+
+            const ipfsCid = data.ipfsCID || data.ipfs_cid;
+            if (ipfsCid) {
+                const ipfsUrl = data.ipfsUrl || `https://gateway.pinata.cloud/ipfs/${ipfsCid}`;
+                details.push({
+                    label: 'IPFS Storage',
+                    value: `<a href="${ipfsUrl}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline; font-family: monospace;">${ipfsCid}</a>`
+                });
             }
 
             verifyResultDetails.innerHTML = details.map(detail => `
@@ -373,16 +442,34 @@ document.addEventListener('DOMContentLoaded', () => {
         lastVerificationResult = data;
         const isAuthentic = !!(data.verified && data.authentic);
 
-        if (downloadVerifyCertBtn) {
-            downloadVerifyCertBtn.style.display = 'inline-flex';
-            if (downloadCertBtnText) {
-                downloadCertBtnText.textContent = isAuthentic 
-                    ? 'Download Certificate (PDF)' 
-                    : 'Download Audit Report (PDF)';
+        if (isRevoked) {
+            // Do NOT show verified certificate buttons for revoked images
+            if (downloadVerifyCertBtn) downloadVerifyCertBtn.style.display = 'none';
+            if (printVerifyCertBtn) printVerifyCertBtn.style.display = 'none';
+        } else {
+            if (downloadVerifyCertBtn) {
+                downloadVerifyCertBtn.style.display = 'inline-flex';
+                if (downloadCertBtnText) {
+                    downloadCertBtnText.textContent = isAuthentic 
+                        ? 'Download Certificate (PDF)' 
+                        : 'Download Audit Report (PDF)';
+                }
+            }
+            if (printVerifyCertBtn) {
+                printVerifyCertBtn.style.display = 'inline-flex';
             }
         }
-        if (printVerifyCertBtn) {
-            printVerifyCertBtn.style.display = 'inline-flex';
+
+        const btnViewIpfs = document.getElementById('btnViewIpfs');
+        if (btnViewIpfs) {
+            const ipfsCid = data.ipfsCID || data.ipfs_cid;
+            if (ipfsCid) {
+                const ipfsUrl = data.ipfsUrl || `https://gateway.pinata.cloud/ipfs/${ipfsCid}`;
+                btnViewIpfs.href = ipfsUrl;
+                btnViewIpfs.style.display = 'inline-flex';
+            } else {
+                btnViewIpfs.style.display = 'none';
+            }
         }
 
         verifyResultCard.style.display = 'block';

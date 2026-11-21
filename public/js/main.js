@@ -60,6 +60,17 @@ const Utils = {
         return `${address.slice(0, 6)}...${address.slice(-4)}`;
     },
 
+    // Sepolia Etherscan URL helpers
+    getEtherscanTxUrl(txHash) {
+        if (!txHash || txHash.startsWith('Not Available') || txHash === 'N/A') return '#';
+        return `https://sepolia.etherscan.io/tx/${txHash}`;
+    },
+
+    getEtherscanAddressUrl(address) {
+        if (!address || address.startsWith('Unassigned') || address === 'N/A') return '#';
+        return `https://sepolia.etherscan.io/address/${address}`;
+    },
+
     // Copy to clipboard
     copyToClipboard(text) {
         if (navigator.clipboard) {
@@ -129,8 +140,11 @@ const API = {
             formData.append('image', file);
             formData.append('encrypt', encrypt);
 
+            const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
+
             const response = await fetch(`${API_BASE_URL}/api/upload`, {
                 method: 'POST',
+                headers: authHeaders,
                 body: formData
             });
 
@@ -150,10 +164,13 @@ const API = {
     // Register on blockchain
     async registerOnBlockchain(imageHash, filename) {
         try {
+            const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
+
             const response = await fetch(`${API_BASE_URL}/api/register`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    ...authHeaders
                 },
                 body: JSON.stringify({
                     image_hash: imageHash,
@@ -164,12 +181,62 @@ const API = {
             const data = await response.json();
             
             if (!response.ok) {
-                throw new Error(data.error || 'Registration failed');
+                const err = new Error(data.error || 'Registration failed');
+                err.status = response.status;
+                err.data = data;
+                throw err;
             }
 
             return data;
         } catch (error) {
             console.error('Error registering on blockchain:', error);
+            throw error;
+        }
+    },
+
+    // Revoke image registration
+    async revokeImage(imageHash) {
+        try {
+            const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
+            const response = await fetch(`${API_BASE_URL}/api/revoke`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders
+                },
+                body: JSON.stringify({
+                    imageHash: imageHash
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                const err = new Error(data.error || 'Revocation failed');
+                err.status = response.status;
+                err.data = data;
+                throw err;
+            }
+            return data;
+        } catch (error) {
+            console.error('Error revoking image:', error);
+            throw error;
+        }
+    },
+
+    // Get current user's registered images
+    async getMyImages() {
+        try {
+            const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
+            const response = await fetch(`${API_BASE_URL}/api/my-images`, {
+                headers: authHeaders
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to fetch user images');
+            }
+            return data;
+        } catch (error) {
+            console.error('Error fetching user images:', error);
             throw error;
         }
     },

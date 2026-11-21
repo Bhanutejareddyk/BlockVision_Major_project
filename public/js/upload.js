@@ -77,6 +77,15 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadBtn.addEventListener('click', async () => {
         if (!selectedFile) return;
         
+        if (typeof Auth !== 'undefined' && !Auth.isLoggedIn()) {
+            Utils.showToast('Wallet Required', 'Please connect and sign in with your MetaMask wallet to upload.', 'warning');
+            try {
+                await Auth.loginWithWallet();
+            } catch (err) {
+                return;
+            }
+        }
+
         await uploadImage();
     });
 
@@ -84,6 +93,15 @@ document.addEventListener('DOMContentLoaded', () => {
     registerBtn.addEventListener('click', async () => {
         if (!uploadedData) return;
         
+        if (typeof Auth !== 'undefined' && !Auth.isLoggedIn()) {
+            Utils.showToast('Wallet Required', 'Please connect your wallet to register on blockchain.', 'warning');
+            try {
+                await Auth.loginWithWallet();
+            } catch (err) {
+                return;
+            }
+        }
+
         await registerOnBlockchain();
     });
 
@@ -131,8 +149,10 @@ document.addEventListener('DOMContentLoaded', () => {
         uploadContent.style.display = 'flex';
         imagePreview.style.display = 'none';
         uploadBtn.disabled = true;
+        uploadBtn.style.display = 'inline-flex';
         registerBtn.style.display = 'none';
         progressBar.style.display = 'none';
+        if (downloadCertificate) downloadCertificate.style.display = 'inline-flex';
     }
 
     // Upload image
@@ -149,7 +169,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (data.success) {
                 uploadedData = data;
-                Utils.showToast('Success!', 'Image uploaded and hash generated', 'success');
+                
+                // Check if near-duplicate warning exists
+                if (data.near_duplicate || data.warning) {
+                    const topMatch = data.near_duplicate || {};
+                    const sim = topMatch.similarity || '95%';
+                    const owner = topMatch.existingOwner || 'Unknown';
+                    const shortOwner = (owner && owner.startsWith('0x')) ? `${owner.slice(0, 6)}...${owner.slice(-4)}` : owner;
+                    Utils.showToast(
+                        'Near-Duplicate Warning', 
+                        `Warning: Very similar image already registered (${sim} similar) - Owner: ${shortOwner}`, 
+                        'warning'
+                    );
+                } else {
+                    Utils.showToast('Success!', 'Image uploaded and hash generated', 'success');
+                }
                 
                 // Show register button
                 uploadBtn.style.display = 'none';
@@ -184,7 +218,11 @@ document.addEventListener('DOMContentLoaded', () => {
             progressFill.style.width = '100%';
 
             if (result.success) {
-                Utils.showToast('Registered!', 'Image registered on blockchain', 'success');
+                if (result.warning) {
+                    Utils.showToast('Re-registered!', result.warning, 'warning');
+                } else {
+                    Utils.showToast('Registered!', 'Image registered on blockchain', 'success');
+                }
                 
                 // Combine data
                 const fullData = { ...uploadedData, ...result };
@@ -197,16 +235,79 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 1000);
             }
         } catch (error) {
-            Utils.showToast('Registration Failed', error.message, 'error');
+            // Check for 409 already registered error
+            if (error.status === 409 || (error.data && error.data.error === 'Image already registered')) {
+                const dupData = error.data || {};
+                const owner = dupData.owner || 'Unknown';
+                const shortOwner = (owner && owner.startsWith('0x')) ? `${owner.slice(0, 6)}...${owner.slice(-4)}` : owner;
+                Utils.showToast('Registration Blocked', `Image already registered on blockchain! Owner: ${shortOwner}`, 'error');
+                displayDuplicateCard({ ...uploadedData, ...dupData });
+            } else {
+                Utils.showToast('Registration Failed', error.message, 'error');
+            }
             registerBtn.disabled = false;
             progressBar.style.display = 'none';
         }
     }
 
+    // Display duplicate card if already registered (409)
+    function displayDuplicateCard(data) {
+        resultTitle.textContent = 'Image Already Registered';
+        const ownerAddr = data.owner || 'Unknown';
+        resultMessage.innerHTML = `This exact image hash already exists on the blockchain and is active.<br>Registered by: <a href="https://sepolia.etherscan.io/address/${ownerAddr}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-family: monospace; font-weight: 600; text-decoration: underline;">${ownerAddr}</a>`;
+
+        resultIcon.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+        `;
+        resultIcon.classList.remove('success');
+        resultIcon.classList.add('error');
+
+        const details = [
+            { label: 'Image Hash', value: data.image_hash, class: 'hash' },
+            { 
+                label: 'Registered Owner', 
+                value: `<a href="https://sepolia.etherscan.io/address/${ownerAddr}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline; font-family: monospace;">${ownerAddr}</a>` 
+            },
+            { label: 'Status', value: '<span style="color: var(--error); font-weight: 600;">Active on Blockchain</span>' }
+        ];
+
+        if (data.timestamp) {
+            details.push({ label: 'Registered On', value: new Date(data.timestamp * 1000).toLocaleString() });
+        }
+        if (data.ipfsCID) {
+            details.push({
+                label: 'IPFS',
+                value: `<a href="https://gateway.pinata.cloud/ipfs/${data.ipfsCID}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-family: monospace;">${data.ipfsCID}</a>`
+            });
+        }
+
+        resultDetails.innerHTML = details.map(detail => `
+            <div class="detail-item">
+                <span class="detail-label">${detail.label}</span>
+                <span class="detail-value ${detail.class || ''}">
+                    ${detail.value}
+                </span>
+            </div>
+        `).join('');
+
+        downloadCertificate.style.display = 'none';
+        resultCard.style.display = 'block';
+        resultCard.scrollIntoView({ behavior: 'smooth' });
+    }
+
     // Display result
     function displayResult(data) {
         resultTitle.textContent = 'Successfully Registered!';
-        resultMessage.textContent = 'Your image has been registered on the blockchain';
+        const ownerAddr = data.owner || (typeof Auth !== 'undefined' ? Auth.getWallet() : '');
+        if (ownerAddr) {
+            resultMessage.innerHTML = `Registered to your wallet: <a href="https://sepolia.etherscan.io/address/${ownerAddr}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-family: monospace; font-weight: 600; text-decoration: underline;">${ownerAddr.slice(0, 6)}...${ownerAddr.slice(-4)}</a>`;
+        } else {
+            resultMessage.textContent = 'Your image has been registered on the blockchain';
+        }
         
         // Update icon
         resultIcon.innerHTML = `
@@ -222,14 +323,44 @@ document.addEventListener('DOMContentLoaded', () => {
         const details = [
             { label: 'Image Hash', value: data.image_hash, class: 'hash' },
             { label: 'Filename', value: data.filename },
+            { 
+                label: 'Registered Owner', 
+                value: ownerAddr 
+                    ? `<a href="https://sepolia.etherscan.io/address/${ownerAddr}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline; font-family: monospace;">${ownerAddr}</a>` 
+                    : 'N/A'
+            },
             { label: 'File Size', value: Utils.formatFileSize(data.file_size) },
             { label: 'Dimensions', value: data.dimensions },
             { label: 'Format', value: data.format },
-            { label: 'Transaction Hash', value: data.transaction_hash, class: 'hash' },
+            { 
+                label: 'Transaction Hash', 
+                value: data.transaction_hash && data.transaction_hash.startsWith('0x')
+                    ? `<a href="https://sepolia.etherscan.io/tx/${data.transaction_hash}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline;">${data.transaction_hash}</a>`
+                    : (data.transaction_hash || 'N/A'), 
+                class: 'hash' 
+            },
             { label: 'Block Number', value: data.block_number },
             { label: 'Gas Used', value: data.gas_used },
             { label: 'Timestamp', value: new Date(data.timestamp).toLocaleString() }
         ].filter(detail => !(detail.label === 'Gas Used' && !detail.value));
+
+        // IPFS CID detail line
+        const ipfsCid = data.ipfsCID || data.ipfs_cid;
+        if (ipfsCid) {
+            const ipfsUrl = data.ipfsUrl || `https://gateway.pinata.cloud/ipfs/${ipfsCid}`;
+            details.push({
+                label: 'IPFS',
+                value: `<span style="display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <a href="${ipfsUrl}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline; font-family: monospace;">${ipfsCid}</a>
+                    <button type="button" onclick="Utils.copyToClipboard('${ipfsCid}')" style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 2px 8px; font-size: 0.75rem; border-radius: 4px; cursor: pointer;">Copy</button>
+                </span>`
+            });
+        } else {
+            details.push({
+                label: 'IPFS',
+                value: '<span style="color: var(--text-muted); font-style: italic;">Not uploaded</span>'
+            });
+        }
 
         if (data.encrypted) {
             details.push({ 
@@ -268,7 +399,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (typeof CertificateGenerator !== 'undefined') {
-            CertificateGenerator.downloadPDF({ ...uploadedData, isVerified: true });
+            const owner = uploadedData.owner || (typeof Auth !== 'undefined' ? Auth.getWallet() : '');
+            CertificateGenerator.downloadPDF({ ...uploadedData, owner, isVerified: true });
         } else {
             Utils.showToast('Error', 'CertificateGenerator not loaded', 'error');
         }

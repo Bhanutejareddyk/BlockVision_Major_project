@@ -39,10 +39,9 @@ module.exports = {
 
     // Sepolia Testnet
     sepolia: {
-      url: `https://sepolia.infura.io/v3/${process.env.INFURA_PROJECT_ID}`,
+      url: process.env.ETHEREUM_NODE_URL || `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 11155111,
-      gasPrice: 10000000000
+      chainId: 11155111
     },
 
     // Goerli Testnet

@@ -49,6 +49,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     closeModalBtn.addEventListener('click', closeModal);
     modalOverlay.addEventListener('click', closeModal);
 
+    window.addEventListener('auth:login', () => {
+        userAddress = typeof Auth !== 'undefined' ? Auth.getWallet() : null;
+        loadHistory();
+    });
+    window.addEventListener('auth:logout', () => {
+        userAddress = null;
+        loadHistory();
+    });
+
     // Initialize function
     async function init() {
         // Load stats first to obtain backend account info
@@ -87,10 +96,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     statContractAddress.textContent = stats.contract_address.startsWith('0x')
                         ? Utils.formatAddress(stats.contract_address)
                         : stats.contract_address;
-                    statContractAddress.title = stats.contract_address;
+                    statContractAddress.title = `View on Sepolia Etherscan: ${stats.contract_address}`;
                     statContractAddress.style.cursor = 'pointer';
                     statContractAddress.addEventListener('click', () => {
-                        Utils.copyToClipboard(stats.contract_address);
+                        if (stats.contract_address.startsWith('0x')) {
+                            window.open(`https://sepolia.etherscan.io/address/${stats.contract_address}`, '_blank');
+                        } else {
+                            Utils.copyToClipboard(stats.contract_address);
+                        }
                     });
                 }
             }
@@ -114,21 +127,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (data.success) {
                 allImages = data.images || [];
                 
-                // Update user images count
-                // Get backend wallet address from first image or fetch from API
-                if (allImages.length > 0) {
-                    // If wallet is connected, count only user's images
-                    if (userAddress) {
-                        const userImages = allImages.filter(img => 
-                            img.owner.toLowerCase() === userAddress.toLowerCase()
-                        );
-                        statYourImages.textContent = userImages.length;
-                    } else {
-                        // Show total count if no wallet connected
-                        statYourImages.textContent = allImages.length;
-                    }
+                // Update user images count using logged-in wallet
+                const loggedInWallet = (typeof Auth !== 'undefined' && Auth.isLoggedIn()) ? Auth.getWallet() : userAddress;
+                if (loggedInWallet && allImages.length > 0) {
+                    const userImages = allImages.filter(img => 
+                        img.owner && img.owner.toLowerCase() === loggedInWallet.toLowerCase()
+                    );
+                    statYourImages.textContent = userImages.length;
                 } else {
-                    statYourImages.textContent = '0';
+                    statYourImages.textContent = loggedInWallet ? '0' : allImages.length;
                 }
                 
                 if (allImages.length > 0) {
@@ -209,7 +216,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (pageImages.length === 0) {
             historyTableBody.innerHTML = `
                 <tr>
-                    <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    <td colspan="8" style="text-align: center; padding: 3rem; color: var(--text-muted);">
                         No images found
                     </td>
                 </tr>
@@ -217,9 +224,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             pagination.style.display = 'none';
             return;
         }
+
+        const loggedInWallet = (typeof Auth !== 'undefined' && Auth.isLoggedIn()) ? Auth.getWallet().toLowerCase() : '';
         
-        historyTableBody.innerHTML = pageImages.map(img => `
-            <tr>
+        historyTableBody.innerHTML = pageImages.map(img => {
+            const isOwner = loggedInWallet && img.owner && img.owner.toLowerCase() === loggedInWallet;
+            const isRevoked = Boolean(img.isRevoked);
+            const canRevoke = isOwner && !isRevoked;
+
+            return `
+            <tr class="${isRevoked ? 'revoked-row' : ''}">
                 <td>
                     <div class="image-thumbnail">
                         <img src="/api/image/${img.image_hash}" 
@@ -239,7 +253,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                         ${Utils.formatAddress(img.owner)}
                     </div>
                 </td>
+                <td data-label="Status" class="status-cell">
+                    ${isRevoked 
+                        ? '<span class="status-pill status-revoked" style="display:inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; background: rgba(255, 59, 48, 0.15); color: #ff3b30; border: 1px solid rgba(255, 59, 48, 0.3);">Revoked</span>' 
+                        : '<span class="status-pill status-active" style="display:inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; background: rgba(52, 199, 89, 0.15); color: #34c759; border: 1px solid rgba(52, 199, 89, 0.3);">Active</span>'}
+                </td>
                 <td data-label="Registered" class="date-cell">${Utils.formatDate(img.timestamp)}</td>
+                <td data-label="IPFS" class="ipfs-cell">
+                    ${(img.ipfsCID || img.ipfs_cid) 
+                        ? `<a href="${img.ipfsUrl || `https://gateway.pinata.cloud/ipfs/${img.ipfsCID || img.ipfs_cid}`}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline; font-weight: 600;">View</a>` 
+                        : '-'}
+                </td>
                 <td class="actions-cell">
                     <div class="action-buttons">
                         <button class="btn-action" onclick="window.viewDetails('${img.image_hash}')">
@@ -248,10 +272,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <button class="btn-action" onclick="window.copyHash('${img.image_hash}')">
                             Copy
                         </button>
+                        ${canRevoke ? `
+                        <button class="btn-action btn-revoke" onclick="window.handleRevoke('${img.image_hash}')" style="color: #ff3b30; border-color: rgba(255, 59, 48, 0.3);" title="Revoke this registration">
+                            Revoke
+                        </button>` : ''}
                     </div>
                 </td>
             </tr>
-        `).join('');
+            `;
+        }).join('');
         
         // Update pagination
         const totalPages = Math.ceil(filteredImages.length / perPage);
@@ -264,6 +293,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             pagination.style.display = 'none';
         }
     }
+
+    // Revoke registration (global function)
+    window.handleRevoke = async function(imageHash) {
+        if (!confirm("Are you sure you want to revoke this image? This cannot be undone.")) {
+            return;
+        }
+        try {
+            Utils.showToast('Revoking', 'Revoking registration on blockchain...', 'info');
+            const res = await API.revokeImage(imageHash);
+            if (res.success) {
+                Utils.showToast('Revoked!', 'Image registration has been revoked', 'success');
+                await loadHistory();
+            } else {
+                Utils.showToast('Revocation Failed', res.error || 'Failed to revoke image', 'error');
+            }
+        } catch (err) {
+            Utils.showToast('Error', err.message || 'Failed to revoke image', 'error');
+        }
+    };
 
     // Change page
     function changePage(page) {
@@ -296,7 +344,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="modal-detail-item">
                 <div class="modal-detail-label">Owner Address</div>
                 <div class="modal-detail-value mono">
-                    ${image.owner}
+                    ${image.owner && image.owner.startsWith('0x') ? `<a href="https://sepolia.etherscan.io/address/${image.owner}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline;">${image.owner}</a>` : image.owner}
                 </div>
             </div>
             <div class="modal-detail-item">
@@ -308,9 +356,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="modal-detail-value">${image.timestamp}</div>
             </div>
             <div class="modal-detail-item">
+                <div class="modal-detail-label">IPFS Storage</div>
+                <div class="modal-detail-value mono">
+                    ${(image.ipfsCID || image.ipfs_cid) 
+                        ? `<a href="${image.ipfsUrl || `https://gateway.pinata.cloud/ipfs/${image.ipfsCID || image.ipfs_cid}`}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline;">${image.ipfsCID || image.ipfs_cid}</a>` 
+                        : 'Not uploaded'}
+                </div>
+            </div>
+            <div class="modal-detail-item">
                 <div class="modal-detail-label">Status</div>
                 <div class="modal-detail-value">
-                    <span class="status-badge verified">Verified on blockchain</span>
+                    ${image.isRevoked 
+                        ? '<span class="status-badge" style="background: rgba(255, 59, 48, 0.15); color: #ff3b30; font-weight: 600; padding: 4px 10px; border-radius: 6px;">REVOKED</span>' 
+                        : '<span class="status-badge verified">Verified on blockchain (Active)</span>'}
                 </div>
             </div>
         `;
@@ -335,13 +393,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         
-        const headers = ['Image Hash', 'Filename', 'Owner Address', 'Registration Date', 'Timestamp'];
+        const headers = ['Image Hash', 'Filename', 'Owner Address', 'Registration Date', 'Timestamp', 'IPFS CID'];
         const rows = filteredImages.map(img => [
             img.image_hash,
             img.filename,
             img.owner,
             img.registration_date,
-            img.timestamp
+            img.timestamp,
+            img.ipfsCID || img.ipfs_cid || ''
         ]);
         
         let csv = headers.join(',') + '\n';

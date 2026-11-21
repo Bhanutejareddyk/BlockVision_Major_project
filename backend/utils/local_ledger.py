@@ -90,18 +90,29 @@ class LocalLedger:
             prev = block['block_hash']
         return True
 
-    def register_image(self, image_hash, file_name):
+    def register_image(self, image_hash, file_name, ipfs_cid=""):
+        return self.register_image_for(self.account.address, image_hash, file_name, ipfs_cid)
+
+    def register_image_for(self, user_address, image_hash, file_name, ipfs_cid=""):
         with _LOCK:
             blocks = self._load()
-            if any(b['image_hash'].lower() == image_hash.lower() for b in blocks):
+            existing = next((b for b in blocks if b['image_hash'].lower() == image_hash.lower()), None)
+            if existing and not existing.get('isRevoked', False):
                 raise RuntimeError('Image already registered')
+            
+            # If re-registering previously revoked image, remove old block or append new
+            if existing and existing.get('isRevoked', False):
+                blocks = [b for b in blocks if b['image_hash'].lower() != image_hash.lower()]
+            
             block = {
                 'index': len(blocks),
                 'image_hash': image_hash,
                 'file_name': file_name,
-                'owner': self.account.address,
+                'owner': user_address or self.account.address,
+                'ipfs_cid': ipfs_cid or '',
                 'timestamp': int(time.time()),
                 'prev_hash': blocks[-1]['block_hash'] if blocks else GENESIS_HASH,
+                'isRevoked': False
             }
             block['block_hash'] = _block_hash(block)
             blocks.append(block)
@@ -111,25 +122,67 @@ class LocalLedger:
             'transaction_hash': '0x' + block['block_hash'],
             'block_number': block['index'] + 1,
             'gas_used': 0,
+            'owner': block['owner'],
+            'isRevoked': False
+        }
+
+    def revoke_image(self, image_hash, user_wallet):
+        with _LOCK:
+            blocks = self._load()
+            target = next((b for b in blocks if b['image_hash'].lower() == image_hash.lower()), None)
+            if not target:
+                raise ValueError('Image is not registered')
+            if target['owner'].lower() != user_wallet.strip().lower():
+                raise PermissionError('Only owner can revoke')
+            if target.get('isRevoked', False):
+                return {
+                    'status': 'already_revoked',
+                    'message': 'Image is already revoked',
+                    'image_hash': image_hash,
+                    'isRevoked': True
+                }
+            target['isRevoked'] = True
+            self._save(blocks)
+        return {
+            'status': 'success',
+            'transaction_hash': '0x' + target['block_hash'],
+            'block_number': target['index'] + 1,
+            'gas_used': 0,
+            'image_hash': image_hash,
+            'isRevoked': True
         }
 
     def get_image_details(self, image_hash):
         block = self._find(image_hash)
         if not block:
-            return {'exists': False, 'error': 'Image not registered'}
+            return {'exists': False, 'isRevoked': False, 'error': 'Image not registered'}
+        cid = block.get('ipfs_cid', '')
         return {
             'exists': True,
             'image_hash': block['image_hash'],
             'owner': block['owner'],
             'timestamp': block['timestamp'],
             'file_name': block['file_name'],
+            'ipfs_cid': cid,
+            'ipfsCID': cid,
+            'ipfsUrl': f"https://gateway.pinata.cloud/ipfs/{cid}" if cid else "",
+            'isRevoked': bool(block.get('isRevoked', False))
         }
 
     def verify_image(self, image_hash):
         details = self.get_image_details(image_hash)
         if details.get('exists'):
-            return {**details, 'registered': True}
-        return {'exists': False, 'registered': False, 'error': 'Image not registered'}
+            is_rev = details.get('isRevoked', False)
+            return {
+                **details,
+                'registered': True,
+                'status': 'REVOKED' if is_rev else 'VERIFIED'
+            }
+        return {'exists': False, 'registered': False, 'isRevoked': False, 'status': 'NOT_FOUND', 'error': 'Image not registered'}
+
+    def is_image_revoked(self, image_hash):
+        block = self._find(image_hash)
+        return bool(block.get('isRevoked', False)) if block else False
 
     def is_image_registered(self, image_hash):
         return self._find(image_hash) is not None

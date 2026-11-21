@@ -912,3 +912,69 @@ svg {
         scroll-behavior: auto !important;
     }
 }
+
+/* Wallet Authentication UI */
+.nav-auth {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 8px;
+}
+
+.wallet-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 14px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: var(--radius-pill);
+    background: var(--fill);
+    color: var(--text);
+    border: 1px solid var(--separator);
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+}
+
+.wallet-btn:hover {
+    background: var(--separator-strong);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.wallet-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--fill);
+    border: 1px solid var(--separator);
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 13px;
+    font-family: monospace;
+}
+
+.wallet-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #34c759;
+    box-shadow: 0 0 6px rgba(52, 199, 89, 0.6);
+}
+
+.wallet-logout-btn {
+    background: none;
+    border: none;
+    color: var(--text-2);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 4px;
+    transition: color 0.2s var(--ease);
+}
+
+.wallet-logout-btn:hover {
+    color: #ff3b30;
+}
