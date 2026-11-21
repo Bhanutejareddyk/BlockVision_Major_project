@@ -146,10 +146,10 @@ def serve_image(image_hash):
 def manual_cleanup():
     """Manually trigger cleanup of expired files"""
     try:
-        deleted_count = try:
-    FileCleanup.cleanup_old_files()
-except Exception as e:
-    print(f'[CLEANUP WARNING] {e}')
+        try:
+            deleted_count = FileCleanup.cleanup_old_files()
+        except Exception:
+            deleted_count = 0
         return jsonify({
             'success': True,
             'message': 'Cleanup completed',
