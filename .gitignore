@@ -69,3 +69,4 @@ backend/solc.exe
 *.log
 !.env.example
 !backend/.env.example
+.venv/

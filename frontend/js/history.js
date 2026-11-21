@@ -221,8 +221,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <div class="image-thumbnail">
                         <img src="/api/image/${img.image_hash}" 
                              alt="${img.filename}" 
-                             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22%3E%3Crect fill=%22%23444%22 width=%2260%22 height=%2260%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23aaa%22 font-size=%2214%22%3ENo Image%3C/text%3E%3C/svg%3E'"
-                             style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; display: block;">
+                             loading="lazy"
+                             onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22%3E%3Crect fill=%22%23e8e8ed%22 width=%2248%22 height=%2248%22/%3E%3C/svg%3E'">
                     </div>
                 </td>
                 <td>
@@ -281,8 +281,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         modalBody.innerHTML = `
             <div class="modal-detail-item">
-                <div class="modal-detail-label">Image Hash</div>
-                <div class="modal-detail-value" style="font-family: 'Space Grotesk', monospace;">
+                <div class="modal-detail-label">Fingerprint (SHA-256)</div>
+                <div class="modal-detail-value mono">
                     ${image.image_hash}
                 </div>
             </div>
@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
             <div class="modal-detail-item">
                 <div class="modal-detail-label">Owner Address</div>
-                <div class="modal-detail-value" style="font-family: 'Space Grotesk', monospace;">
+                <div class="modal-detail-value mono">
                     ${image.owner}
                 </div>
             </div>
@@ -304,10 +304,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="modal-detail-label">Timestamp</div>
                 <div class="modal-detail-value">${image.timestamp}</div>
             </div>
-            <div class="modal-detail-item" style="background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.2);">
+            <div class="modal-detail-item">
                 <div class="modal-detail-label">Status</div>
                 <div class="modal-detail-value">
-                    <span class="status-badge verified">✓ Verified on Blockchain</span>
+                    <span class="status-badge verified">Verified on blockchain</span>
                 </div>
             </div>
         `;

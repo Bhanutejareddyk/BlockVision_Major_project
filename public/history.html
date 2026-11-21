@@ -2,105 +2,105 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Every photo registered on the blockchain with BlockVision.">
+    <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
     <title>History - BlockVision</title>
-    <link rel="stylesheet" href="/css/style.css">
-    <link rel="stylesheet" href="/css/history.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/history.css">
 </head>
 <body>
-    <!-- Animated Background -->
-    <div class="animated-bg">
-        <div class="gradient-orb orb-1"></div>
-        <div class="gradient-orb orb-2"></div>
-        <div class="gradient-orb orb-3"></div>
-    </div>
-
-    <!-- Navigation -->
-    <nav class="navbar">
+    <nav class="navbar" aria-label="Main">
         <div class="container">
             <div class="nav-content">
-                <div class="nav-brand">
-                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <a href="/" class="nav-brand" aria-label="BlockVision home">
+                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                         <path d="M12 2L2 7l10 5 10-5-10-5z"/>
                         <path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>
                     </svg>
                     <span class="brand-name">BlockVision</span>
-                </div>
+                </a>
                 <div class="nav-links">
-                    <a href="/" class="nav-link">Home</a>
-                    <a href="/upload" class="nav-link">Upload</a>
-                    <a href="/verify" class="nav-link">Verify</a>
-                    <a href="/history" class="nav-link active">History</a>
+                    <a href="/" class="nav-link">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
+                        <span>Home</span>
+                    </a>
+                    <a href="/upload" class="nav-link">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <span>Upload</span>
+                    </a>
+                    <a href="/verify" class="nav-link">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                        <span>Verify</span>
+                    </a>
+                    <a href="/history" class="nav-link active" aria-current="page">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                        <span>History</span>
+                    </a>
                 </div>
             </div>
         </div>
     </nav>
 
-    <!-- History Section -->
-    <section class="history-section">
+    <main class="history-section">
         <div class="container">
-            <div class="history-header">
+            <header class="history-header">
                 <div>
-                    <h1 class="page-title">
-                        Transaction <span class="gradient-text">History</span>
-                    </h1>
-                    <p class="page-description">
-                        View all registered images and blockchain transactions
-                    </p>
+                    <h1 class="page-title">History</h1>
+                    <p class="page-description">Every photo registered on the blockchain.</p>
                 </div>
-                <button class="btn btn-primary" id="refreshHistory">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <polyline points="1 4 1 10 7 10"/>
-                        <polyline points="23 20 23 14 17 14"/>
-                        <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+                <button class="btn btn-secondary" id="refreshHistory" type="button">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                        <polyline points="23 4 23 10 17 10"/>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
                     </svg>
                     Refresh
                 </button>
-            </div>
+            </header>
 
-            <!-- Stats Cards -->
             <div class="stats-grid">
                 <div class="stat-card glass-card">
                     <div class="stat-card-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <rect x="3" y="3" width="7" height="7"/>
-                            <rect x="14" y="3" width="7" height="7"/>
-                            <rect x="14" y="14" width="7" height="7"/>
-                            <rect x="3" y="14" width="7" height="7"/>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <rect x="3" y="3" width="18" height="18" rx="3"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                            <polyline points="21 15 16 10 5 21"/>
                         </svg>
                     </div>
                     <div class="stat-card-content">
-                        <div class="stat-card-label">Total Images</div>
+                        <div class="stat-card-label">Total photos</div>
                         <div class="stat-card-value" id="statTotalImages">0</div>
                     </div>
                 </div>
 
                 <div class="stat-card glass-card">
                     <div class="stat-card-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                            <circle cx="8.5" cy="7" r="4"/>
-                            <polyline points="17 11 19 13 23 9"/>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
                         </svg>
                     </div>
                     <div class="stat-card-content">
-                        <div class="stat-card-label">Your Images</div>
+                        <div class="stat-card-label">Your photos</div>
                         <div class="stat-card-value" id="statYourImages">0</div>
                     </div>
                 </div>
 
                 <div class="stat-card glass-card">
-                    <div class="stat-card-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <circle cx="12" cy="12" r="10"/>
-                            <polyline points="12 6 12 12 16 14"/>
+                    <div class="stat-card-icon green">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+                            <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+                            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+                            <line x1="12" y1="20" x2="12.01" y2="20"/>
                         </svg>
                     </div>
                     <div class="stat-card-content">
-                        <div class="stat-card-label">Network Status</div>
+                        <div class="stat-card-label">Network</div>
                         <div class="stat-card-value status" id="statNetworkStatus">
                             <span class="status-dot"></span>
                             <span>Checking...</span>
@@ -109,150 +109,125 @@
                 </div>
 
                 <div class="stat-card glass-card">
-                    <div class="stat-card-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                            <path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    <div class="stat-card-icon orange">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
                         </svg>
                     </div>
                     <div class="stat-card-content">
-                        <div class="stat-card-label">Contract Address</div>
-                        <div class="stat-card-value contract" id="statContractAddress">
-                            Not Connected
-                        </div>
+                        <div class="stat-card-label">Contract</div>
+                        <div class="stat-card-value contract" id="statContractAddress">Not connected</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Filter and Search -->
             <div class="filter-bar glass-card">
                 <div class="search-box">
-                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                         <circle cx="11" cy="11" r="8"/>
                         <path d="m21 21-4.35-4.35"/>
                     </svg>
-                    <input 
-                        type="text" 
-                        id="searchInput" 
-                        placeholder="Search by hash, filename, or address..."
+                    <label for="searchInput" class="sr-only">Search photos</label>
+                    <input
+                        type="search"
+                        id="searchInput"
+                        placeholder="Search by name, fingerprint or owner"
                         class="search-input"
                     >
                 </div>
-                <div class="filter-buttons">
-                    <button class="filter-btn active" data-filter="all">All</button>
-                    <button class="filter-btn" data-filter="mine">My Images</button>
-                    <button class="filter-btn" data-filter="recent">Recent</button>
+                <div class="filter-buttons" role="group" aria-label="Filter photos">
+                    <button class="filter-btn active" data-filter="all" type="button">All</button>
+                    <button class="filter-btn" data-filter="mine" type="button">Mine</button>
+                    <button class="filter-btn" data-filter="recent" type="button">Recent</button>
                 </div>
             </div>
 
-            <!-- History Table -->
-            <div class="history-table glass-card">
+            <section class="history-table glass-card" aria-labelledby="tableTitle">
                 <div class="table-header">
-                    <h3 class="table-title">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    <h2 class="table-title" id="tableTitle">Registered photos</h2>
+                    <button class="btn-icon" id="exportCSV" type="button" title="Export to CSV">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
                         </svg>
-                        Registered Images
-                    </h3>
-                    <div class="table-actions">
-                        <button class="btn-icon" id="exportCSV" title="Export to CSV">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                <polyline points="7 10 12 15 17 10"/>
-                                <line x1="12" y1="15" x2="12" y2="3"/>
-                            </svg>
-                        </button>
-                    </div>
+                        Export
+                    </button>
                 </div>
 
                 <div class="table-container">
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Image</th>
-                                <th>Image Hash</th>
-                                <th>Filename</th>
-                                <th>Owner</th>
-                                <th>Registered</th>
-                                <th>Actions</th>
+                                <th scope="col">Photo</th>
+                                <th scope="col">Fingerprint</th>
+                                <th scope="col">Name</th>
+                                <th scope="col">Owner</th>
+                                <th scope="col">Registered</th>
+                                <th scope="col"><span class="sr-only">Actions</span></th>
                             </tr>
                         </thead>
-                        <tbody id="historyTableBody">
-                            <!-- Populated by JavaScript -->
-                        </tbody>
+                        <tbody id="historyTableBody"></tbody>
                     </table>
                 </div>
 
-                <!-- Loading State -->
                 <div class="loading-state" id="loadingState">
-                    <div class="loader"></div>
-                    <p>Loading blockchain data...</p>
+                    <div class="loader" aria-hidden="true"></div>
+                    <p>Loading from blockchain...</p>
                 </div>
 
-                <!-- Empty State -->
                 <div class="empty-state" id="emptyState" style="display: none;">
                     <div class="empty-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <circle cx="12" cy="12" r="10"/>
-                            <line x1="12" y1="8" x2="12" y2="12"/>
-                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <rect x="3" y="3" width="18" height="18" rx="3"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                            <polyline points="21 15 16 10 5 21"/>
                         </svg>
                     </div>
-                    <h3>No images found</h3>
-                    <p>Start by uploading and registering an image on the blockchain</p>
-                    <a href="/upload" class="btn btn-primary">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="17 8 12 3 7 8"/>
-                            <line x1="12" y1="3" x2="12" y2="15"/>
-                        </svg>
-                        Upload Image
-                    </a>
+                    <h3>No photos yet</h3>
+                    <p>Photos you protect will show up here.</p>
+                    <a href="/upload" class="btn btn-primary">Protect a Photo</a>
                 </div>
-            </div>
+            </section>
 
-            <!-- Pagination -->
-            <div class="pagination" id="pagination" style="display: none;">
-                <button class="btn-page" id="prevPage" disabled>
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <nav class="pagination" id="pagination" style="display: none;" aria-label="Pagination">
+                <button class="btn-page" id="prevPage" type="button" disabled>
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                         <polyline points="15 18 9 12 15 6"/>
                     </svg>
                     Previous
                 </button>
                 <div class="page-info" id="pageInfo">Page 1 of 1</div>
-                <button class="btn-page" id="nextPage" disabled>
+                <button class="btn-page" id="nextPage" type="button" disabled>
                     Next
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                         <polyline points="9 18 15 12 9 6"/>
                     </svg>
                 </button>
-            </div>
+            </nav>
         </div>
-    </section>
+    </main>
 
-    <!-- Detail Modal -->
-    <div class="modal" id="detailModal">
+    <div class="modal" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-overlay" id="modalOverlay"></div>
         <div class="modal-content glass-card">
             <div class="modal-header">
-                <h3 class="modal-title">Image Details</h3>
-                <button class="btn-close" id="closeModal">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <h3 class="modal-title" id="modalTitle">Photo details</h3>
+                <button class="btn-close" id="closeModal" type="button" aria-label="Close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                         <line x1="18" y1="6" x2="6" y2="18"/>
                         <line x1="6" y1="6" x2="18" y2="18"/>
                     </svg>
                 </button>
             </div>
-            <div class="modal-body" id="modalBody">
-                <!-- Populated by JavaScript -->
-            </div>
+            <div class="modal-body" id="modalBody"></div>
         </div>
     </div>
 
-    <!-- Toast Notification -->
-    <div class="toast" id="toast">
+    <div class="toast" id="toast" role="status" aria-live="polite">
         <div class="toast-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                 <circle cx="12" cy="12" r="10"/>
                 <line x1="12" y1="8" x2="12" y2="12"/>
                 <line x1="12" y1="16" x2="12.01" y2="16"/>
