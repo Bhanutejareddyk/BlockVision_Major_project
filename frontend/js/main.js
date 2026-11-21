@@ -169,6 +169,8 @@ const API = {
 
     // Batch upload multiple images (up to 10)
     async batchUpload(files, encrypt = false) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
         try {
             const formData = new FormData();
             for (let i = 0; i < files.length; i++) {
@@ -182,12 +184,17 @@ const API = {
                 authHeaders['X-User-Email'] = email;
             }
 
-            const response = await fetch(getApiBase() + '/api/batch-upload', {
+            const url = getApiBase() + '/api/batch-upload';
+            console.log("Fetching:", url);
+
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: authHeaders,
-                body: formData
+                body: formData,
+                signal: controller.signal
             });
 
+            clearTimeout(timeoutId);
             const data = await response.json();
             if (!response.ok) {
                 const err = new Error(data.error || 'Batch upload failed');
@@ -197,6 +204,10 @@ const API = {
             }
             return data;
         } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                throw new Error('Upload timed out, please try again');
+            }
             console.error('Error in batch upload:', error);
             throw error;
         }
@@ -204,6 +215,8 @@ const API = {
 
     // Batch register multiple images on blockchain
     async batchRegister(imagesList) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
         try {
             const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
             const email = localStorage.getItem('bv_email') || '';
@@ -211,7 +224,10 @@ const API = {
                 authHeaders['X-User-Email'] = email;
             }
 
-            const response = await fetch(getApiBase() + '/api/batch-register', {
+            const url = getApiBase() + '/api/batch-register';
+            console.log("Fetching:", url);
+
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -219,9 +235,11 @@ const API = {
                 },
                 body: JSON.stringify({
                     images: imagesList
-                })
+                }),
+                signal: controller.signal
             });
 
+            clearTimeout(timeoutId);
             const data = await response.json();
             if (!response.ok) {
                 const err = new Error(data.error || 'Batch registration failed');
@@ -231,6 +249,10 @@ const API = {
             }
             return data;
         } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                throw new Error('Registration timed out, please try again');
+            }
             console.error('Error in batch register:', error);
             throw error;
         }
@@ -238,6 +260,8 @@ const API = {
 
     // Upload image
     async uploadImage(file, encrypt = false) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
         try {
             const formData = new FormData();
             formData.append('image', file);
@@ -249,12 +273,17 @@ const API = {
                 authHeaders['X-User-Email'] = email;
             }
 
-            const response = await fetch(getApiBase() + '/api/upload', {
+            const url = getApiBase() + '/api/upload';
+            console.log("Fetching:", url);
+
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: authHeaders,
-                body: formData
+                body: formData,
+                signal: controller.signal
             });
 
+            clearTimeout(timeoutId);
             const data = await response.json();
             
             if (!response.ok) {
@@ -263,6 +292,10 @@ const API = {
 
             return data;
         } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                throw new Error('Upload timed out, please try again');
+            }
             console.error('Error uploading image:', error);
             throw error;
         }
@@ -270,6 +303,8 @@ const API = {
 
     // Register on blockchain
     async registerOnBlockchain(imageHash, filename) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
         try {
             const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
             const email = localStorage.getItem('bv_email') || '';
@@ -277,7 +312,10 @@ const API = {
                 authHeaders['X-User-Email'] = email;
             }
 
-            const response = await fetch(getApiBase() + '/api/register', {
+            const url = getApiBase() + '/api/register';
+            console.log("Fetching:", url);
+
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -286,9 +324,11 @@ const API = {
                 body: JSON.stringify({
                     image_hash: imageHash,
                     filename: filename
-                })
+                }),
+                signal: controller.signal
             });
 
+            clearTimeout(timeoutId);
             const data = await response.json();
             
             if (!response.ok) {
@@ -300,6 +340,10 @@ const API = {
 
             return data;
         } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                throw new Error('Registration timed out, please try again');
+            }
             console.error('Error registering on blockchain:', error);
             throw error;
         }
@@ -451,13 +495,6 @@ const API = {
             if (!response.ok) {
                 throw new Error(data.error || 'Hash verification failed');
             }
-
-            return data;
-        } catch (error) {
-            console.error('Error verifying hash:', error);
-            throw error;
-        }
-    },
 
             return data;
         } catch (error) {

@@ -245,8 +245,6 @@ const CertificateGenerator = {
         doc.setFont('courier', 'normal');
         doc.setFontSize(7.5);
         doc.setTextColor(...cNavy);
-        const ipfsCid = data.ipfsCID || data.ipfs_cid || '';
-        const ipfsUrl = data.ipfsUrl || (ipfsCid ? `https://gateway.pinata.cloud/ipfs/${ipfsCid}` : '');
         const ipfsLine = ipfsCid 
             ? `IPFS CID: ${ipfsCid}  |  IPFS URL: ${ipfsUrl}`
             : 'IPFS: Not uploaded';
@@ -502,12 +500,6 @@ const CertificateGenerator = {
             ['4. Unverifiable Provenance:', 'No transaction timestamp, block height, or signer wallet address exists for this file.'],
             ['5. Inconclusive Watermark:', 'Steganographic LSB analysis did not detect any verifiable blockchain transaction signature.']
         ]);
-            ['1. Cryptographic Hash Mismatch:', 'The SHA-256 digest does not match any record in the smart contract registry.'],
-            ['2. Potential File Alteration:', 'Even a single pixel edit, crop, compression, or metadata change invalidates the hash.'],
-            ['3. Unregistered Digital Asset:', 'The image creator or copyright holder has not yet notarized this image on the blockchain.'],
-            ['4. Unverifiable Provenance:', 'No transaction timestamp, block height, or signer wallet address exists for this file.'],
-            ['5. Inconclusive Watermark:', 'Steganographic LSB analysis did not detect any verifiable blockchain transaction signature.']
-        ];
 
         const listHtml = items.map(([title, desc]) => `
             <div style="margin-bottom: 5px; font-size: 11px;">

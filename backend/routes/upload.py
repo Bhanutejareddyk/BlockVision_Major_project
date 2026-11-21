@@ -120,12 +120,16 @@ def process_image_upload(file, encrypt_option=False):
 def upload_image():
     """Handle image upload and hash calculation for authenticated user"""
     try:
-        if 'image' not in request.files:
-            return jsonify({'error': 'No image file provided'}), 400
+        file = None
+        if 'image' in request.files:
+            file = request.files['image']
+        elif 'images' in request.files:
+            files_list = request.files.getlist('images')
+            if files_list:
+                file = files_list[0]
 
-        file = request.files['image']
         if not file or file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
+            return jsonify({'error': 'No image file provided'}), 400
 
         encrypt_option = request.form.get('encrypt', 'false').lower() == 'true'
         data, err, status = process_image_upload(file, encrypt_option)
