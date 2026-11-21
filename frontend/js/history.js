@@ -70,9 +70,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 
                 if (stats.connected) {
+                    const networkLabel = stats.mode === 'local' ? 'Local ledger' : 'Ethereum';
                     statNetworkStatus.innerHTML = `
                         <span class="status-dot"></span>
-                        <span>Connected</span>
+                        <span>${networkLabel}</span>
                     `;
                 } else {
                     statNetworkStatus.innerHTML = `
@@ -83,7 +84,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 
                 if (stats.contract_address) {
-                    statContractAddress.textContent = Utils.formatAddress(stats.contract_address);
+                    statContractAddress.textContent = stats.contract_address.startsWith('0x')
+                        ? Utils.formatAddress(stats.contract_address)
+                        : stats.contract_address;
                     statContractAddress.title = stats.contract_address;
                     statContractAddress.style.cursor = 'pointer';
                     statContractAddress.addEventListener('click', () => {
@@ -225,19 +228,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                              onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22%3E%3Crect fill=%22%23e8e8ed%22 width=%2248%22 height=%2248%22/%3E%3C/svg%3E'">
                     </div>
                 </td>
-                <td>
+                <td data-label="Fingerprint">
                     <div class="hash-cell" title="${img.image_hash}">
                         ${img.image_hash.slice(0, 16)}...
                     </div>
                 </td>
-                <td>${img.filename || 'Unknown'}</td>
-                <td>
+                <td data-label="Name" class="name-cell">${img.filename || 'Unknown'}</td>
+                <td data-label="Owner">
                     <div class="owner-cell" title="${img.owner}">
                         ${Utils.formatAddress(img.owner)}
                     </div>
                 </td>
-                <td class="date-cell">${Utils.formatDate(img.timestamp)}</td>
-                <td>
+                <td data-label="Registered" class="date-cell">${Utils.formatDate(img.timestamp)}</td>
+                <td class="actions-cell">
                     <div class="action-buttons">
                         <button class="btn-action" onclick="window.viewDetails('${img.image_hash}')">
                             View

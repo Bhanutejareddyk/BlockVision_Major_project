@@ -135,7 +135,9 @@
 
 .image-preview {
     position: relative;
-    width: 100%;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 auto;
     padding: 16px;
     align-items: center;
     justify-content: center;

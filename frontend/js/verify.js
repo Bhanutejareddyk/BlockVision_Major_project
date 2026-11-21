@@ -261,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 { label: 'Status', value: '<span class="status-badge verified">Verified</span>' },
                 { label: 'Image Hash (SHA-256)', value: data.image_hash, class: 'hash' },
                 { label: 'Owner Address', value: data.owner, class: 'hash' },
-                { label: 'Registration Date', value: data.registration_date },
+                { label: 'Registration Date', value: data.timestamp ? Utils.formatDate(data.timestamp) : data.registration_date },
                 { label: 'Original Filename', value: data.original_filename }
             ];
 
