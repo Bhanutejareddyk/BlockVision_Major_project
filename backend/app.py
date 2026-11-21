@@ -29,7 +29,10 @@ CORS(app)
 print(f"\n{'='*60}")
 print(f"[CLEANUP] Checking for files older than {Config.RETENTION_DAYS} days...")
 print(f"{'='*60}")
-FileCleanup.cleanup_old_files()
+try:
+    FileCleanup.cleanup_old_files()
+except Exception as e:
+    print(f'[CLEANUP WARNING] {e}')
 print(f"{'='*60}\n")
 
 # Register blueprints
@@ -143,7 +146,10 @@ def serve_image(image_hash):
 def manual_cleanup():
     """Manually trigger cleanup of expired files"""
     try:
-        deleted_count = FileCleanup.cleanup_old_files()
+        deleted_count = try:
+    FileCleanup.cleanup_old_files()
+except Exception as e:
+    print(f'[CLEANUP WARNING] {e}')
         return jsonify({
             'success': True,
             'message': 'Cleanup completed',
