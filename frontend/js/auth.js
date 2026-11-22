@@ -1,14 +1,15 @@
 // Auth module for BlockVision-2.0
 // Supports 3 Authentication Methods:
 // 1. MetaMask / Web3 (Desktop & Mobile Deep-Link & WalletConnect)
-// 2. Email OTP Login (Custodial wallet derived on backend, zero wallet needed)
-// 3. Guest / Demo Mode (Instant 1-click access for viva demonstration)
+// 2. Email OTP Login (Real-time Gmail SMTP dispatch, permanent custodial wallet mapping)
+// 3. Reusable Guest ID (e.g. GUEST-A7K9P2 - persistent history across sessions)
 
 const Auth = {
     TOKEN_KEY: 'blockvision_token',
     WALLET_KEY: 'blockvision_wallet',
     LOGIN_TYPE_KEY: 'blockvision_login_type',
     EMAIL_KEY: 'blockvision_email',
+    GUEST_ID_KEY: 'blockvision_guest_id',
     EXPIRES_KEY: 'blockvision_auth_expires',
 
     // Detect mobile device
@@ -34,27 +35,26 @@ const Auth = {
         return true;
     },
 
-    // Get current session token
     getToken() {
         return localStorage.getItem(this.TOKEN_KEY) || '';
     },
 
-    // Get current wallet address
     getWallet() {
         return localStorage.getItem(this.WALLET_KEY) || '';
     },
 
-    // Get login type: 'metamask' | 'email' | 'guest'
     getLoginType() {
         return localStorage.getItem(this.LOGIN_TYPE_KEY) || 'metamask';
     },
 
-    // Get user email (for email login)
     getEmail() {
         return localStorage.getItem(this.EMAIL_KEY) || '';
     },
 
-    // Authorization headers for fetch requests
+    getGuestId() {
+        return localStorage.getItem(this.GUEST_ID_KEY) || '';
+    },
+
     authHeaders() {
         const token = this.getToken();
         if (token) {
@@ -63,13 +63,11 @@ const Auth = {
         return {};
     },
 
-    // Format address for display
     formatAddress(addr) {
         if (!addr) return '';
         return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
     },
 
-    // Check authentication and open modal if not logged in
     checkAuth(openModalIfLoggedOut = false) {
         const loggedIn = this.isLoggedIn();
         if (!loggedIn && openModalIfLoggedOut) {
@@ -82,7 +80,6 @@ const Auth = {
     // OPTION 1: MetaMask & Mobile Web3
     // =========================================================================
 
-    // Request account access from MetaMask
     async connectWallet() {
         if (!this.isMetaMaskInstalled()) {
             throw new Error('MetaMask is not installed.');
@@ -99,14 +96,12 @@ const Auth = {
         return accounts[0].toLowerCase();
     },
 
-    // Deep link redirect for mobile users
     openMetaMaskMobile() {
         const currentPath = window.location.host + window.location.pathname + window.location.search;
         const deepLink = `https://metamask.app.link/dapp/${currentPath}`;
         window.location.href = deepLink;
     },
 
-    // Complete MetaMask login flow
     async loginWithWallet() {
         try {
             if (!this.isMetaMaskInstalled()) {
@@ -125,7 +120,6 @@ const Auth = {
             const walletAddress = await this.connectWallet();
             const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
 
-            // 1. Request nonce challenge
             const nonceRes = await fetch(`${apiBase}/api/auth/nonce`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -143,21 +137,15 @@ const Auth = {
                 Utils.showToast('Signing', 'Please sign the authentication message in MetaMask...', 'info');
             }
 
-            // 2. Request signature
             const signature = await window.ethereum.request({
                 method: 'personal_sign',
                 params: [message, walletAddress]
             });
 
-            // 3. Verify on backend
             const loginRes = await fetch(`${apiBase}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    walletAddress,
-                    nonce,
-                    signature
-                })
+                body: JSON.stringify({ walletAddress, nonce, signature })
             });
 
             const loginData = await loginRes.json();
@@ -165,11 +153,11 @@ const Auth = {
                 throw new Error(loginData.error || 'Signature verification failed.');
             }
 
-            // 4. Save session
             localStorage.setItem(this.TOKEN_KEY, loginData.token);
             localStorage.setItem(this.WALLET_KEY, loginData.wallet.toLowerCase());
             localStorage.setItem(this.LOGIN_TYPE_KEY, 'metamask');
             localStorage.removeItem(this.EMAIL_KEY);
+            localStorage.removeItem(this.GUEST_ID_KEY);
             const expiresInMs = (loginData.expiresIn || 86400) * 1000;
             localStorage.setItem(this.EXPIRES_KEY, String(Date.now() + expiresInMs));
 
@@ -191,7 +179,6 @@ const Auth = {
         }
     },
 
-    // WalletConnect support (Trust Wallet, Rainbow, mobile wallets)
     async loginWithWalletConnect() {
         try {
             if (typeof WalletConnectProvider === 'undefined') {
@@ -200,9 +187,7 @@ const Auth = {
             }
 
             const provider = new WalletConnectProvider.default({
-                rpc: {
-                    11155111: "https://rpc.sepolia.org"
-                }
+                rpc: { 11155111: "https://rpc.sepolia.org" }
             });
 
             await provider.enable();
@@ -222,7 +207,6 @@ const Auth = {
             const nonceData = await nonceRes.json();
             const { nonce, message } = nonceData;
 
-            // Sign personal_sign via provider
             const signature = await provider.request({
                 method: 'personal_sign',
                 params: [message, walletAddress]
@@ -253,7 +237,7 @@ const Auth = {
     },
 
     // =========================================================================
-    // OPTION 2: EMAIL LOGIN (Custodial Wallet, zero extensions)
+    // OPTION 2: EMAIL LOGIN (Real-Time Gmail OTP, Permanent Custodial Wallet)
     // =========================================================================
 
     async requestEmailOtp(email) {
@@ -270,7 +254,7 @@ const Auth = {
 
         const data = await res.json();
         if (!res.ok || !data.success) {
-            throw new Error(data.error || 'Failed to send OTP code.');
+            throw new Error(data.error || 'Failed to dispatch verification code via SMTP.');
         }
         return data;
     },
@@ -295,11 +279,11 @@ const Auth = {
             throw new Error(data.error || 'Invalid verification code.');
         }
 
-        // Save session
         localStorage.setItem(this.TOKEN_KEY, data.token);
         localStorage.setItem(this.WALLET_KEY, data.wallet.toLowerCase());
         localStorage.setItem(this.LOGIN_TYPE_KEY, 'email');
         localStorage.setItem(this.EMAIL_KEY, data.email.toLowerCase());
+        localStorage.removeItem(this.GUEST_ID_KEY);
         const expiresInMs = (data.expiresIn || 86400) * 1000;
         localStorage.setItem(this.EXPIRES_KEY, String(Date.now() + expiresInMs));
 
@@ -314,60 +298,77 @@ const Auth = {
     },
 
     // =========================================================================
-    // OPTION 3: GUEST / DEMO MODE (Instant 1-Click Access)
+    // OPTION 3: GUEST ID (Reusable Guest Mode with Persistent History)
     // =========================================================================
 
-    async loginAsGuest() {
-        try {
-            if (typeof Utils !== 'undefined' && Utils.showToast) {
-                Utils.showToast('Guest Mode', 'Starting instant demo session...', 'info');
-            }
+    async createGuestAccount() {
+        const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
+        const res = await fetch(`${apiBase}/api/auth/guest`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
 
-            const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
-            const res = await fetch(`${apiBase}/api/auth/guest`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({})
-            });
-
-            const data = await res.json();
-            if (!res.ok || !data.success) {
-                throw new Error(data.error || 'Could not initialize guest session.');
-            }
-
-            // Save guest session
-            localStorage.setItem(this.TOKEN_KEY, data.token);
-            localStorage.setItem(this.WALLET_KEY, data.wallet.toLowerCase());
-            localStorage.setItem(this.LOGIN_TYPE_KEY, 'guest');
-            localStorage.removeItem(this.EMAIL_KEY);
-            const expiresInMs = (data.expiresIn || 86400) * 1000;
-            localStorage.setItem(this.EXPIRES_KEY, String(Date.now() + expiresInMs));
-
-            if (typeof Utils !== 'undefined' && Utils.showToast) {
-                Utils.showToast('Guest Session Active', 'You are browsing in Demo Mode (Upload & Verify enabled)', 'success');
-            }
-
-            this.closeLoginModal();
-            this.renderUI();
-            window.dispatchEvent(new CustomEvent('auth:login', { detail: { wallet: data.wallet, loginType: 'guest' } }));
-            return data;
-
-        } catch (err) {
-            console.error('Guest login failed:', err);
-            if (typeof Utils !== 'undefined' && Utils.showToast) {
-                Utils.showToast('Demo Error', err.message || 'Could not start guest session', 'error');
-            }
-            throw err;
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Could not generate Guest ID.');
         }
+
+        // Save session
+        localStorage.setItem(this.TOKEN_KEY, data.token);
+        localStorage.setItem(this.WALLET_KEY, data.wallet.toLowerCase());
+        localStorage.setItem(this.LOGIN_TYPE_KEY, 'guest');
+        localStorage.setItem(this.GUEST_ID_KEY, data.guestId);
+        localStorage.removeItem(this.EMAIL_KEY);
+        const expiresInMs = (data.expiresIn || 86400) * 1000;
+        localStorage.setItem(this.EXPIRES_KEY, String(Date.now() + expiresInMs));
+
+        return data;
     },
 
-    // Log out user
+    async loginWithGuestId(guestId) {
+        const cleanId = (guestId || '').trim().toUpperCase();
+        if (!cleanId) {
+            throw new Error('Please enter your Guest ID (e.g. GUEST-A7K9P2).');
+        }
+
+        const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
+        const res = await fetch(`${apiBase}/api/auth/guest-login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ guestId: cleanId })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Guest ID not found. Check spelling or create a new Guest ID.');
+        }
+
+        localStorage.setItem(this.TOKEN_KEY, data.token);
+        localStorage.setItem(this.WALLET_KEY, data.wallet.toLowerCase());
+        localStorage.setItem(this.LOGIN_TYPE_KEY, 'guest');
+        localStorage.setItem(this.GUEST_ID_KEY, data.guestId);
+        localStorage.removeItem(this.EMAIL_KEY);
+        const expiresInMs = (data.expiresIn || 86400) * 1000;
+        localStorage.setItem(this.EXPIRES_KEY, String(Date.now() + expiresInMs));
+
+        if (typeof Utils !== 'undefined' && Utils.showToast) {
+            Utils.showToast('Guest Session Loaded', `Logged in with Guest ID: ${data.guestId}`, 'success');
+        }
+
+        this.closeLoginModal();
+        this.renderUI();
+        window.dispatchEvent(new CustomEvent('auth:login', { detail: { wallet: data.wallet, loginType: 'guest', guestId: data.guestId } }));
+        return data;
+    },
+
     logout(reload = true) {
         localStorage.removeItem(this.TOKEN_KEY);
         localStorage.removeItem(this.WALLET_KEY);
         localStorage.removeItem(this.LOGIN_TYPE_KEY);
         localStorage.removeItem(this.EMAIL_KEY);
         localStorage.removeItem(this.EXPIRES_KEY);
+        // Note: We leave GUEST_ID_KEY in localStorage so the guest login input can prefill it!
         this.renderUI();
         window.dispatchEvent(new CustomEvent('auth:logout'));
         if (reload) {
@@ -391,6 +392,13 @@ const Auth = {
             modal.classList.add('active');
             modal.setAttribute('aria-hidden', 'false');
             document.body.style.overflow = 'hidden';
+
+            // Auto-suggest saved guest ID if opening guest tab
+            const guestInput = document.getElementById('authGuestIdInput');
+            if (guestInput && !guestInput.value) {
+                const savedGid = this.getGuestId();
+                if (savedGid) guestInput.value = savedGid;
+            }
         }
     },
 
@@ -407,24 +415,16 @@ const Auth = {
         const modal = document.getElementById('authModal');
         if (!modal) return;
 
-        // Update tab buttons
         const tabs = modal.querySelectorAll('.bv-tab');
         tabs.forEach(t => {
-            if (t.dataset.tab === tabName) {
-                t.classList.add('active');
-            } else {
-                t.classList.remove('active');
-            }
+            if (t.dataset.tab === tabName) t.classList.add('active');
+            else t.classList.remove('active');
         });
 
-        // Update tab panes
         const panes = modal.querySelectorAll('.bv-tab-pane');
         panes.forEach(p => {
-            if (p.id === `tabPane-${tabName}`) {
-                p.classList.add('active');
-            } else {
-                p.classList.remove('active');
-            }
+            if (p.id === `tabPane-${tabName}`) p.classList.add('active');
+            else p.classList.remove('active');
         });
     },
 
@@ -433,6 +433,7 @@ const Auth = {
 
         const hasExtension = this.isMetaMaskInstalled();
         const isMob = this.isMobile();
+        const savedGid = this.getGuestId();
 
         const modalHtml = `
         <div id="authModal" class="bv-modal" aria-hidden="true" role="dialog" aria-modal="true">
@@ -441,121 +442,118 @@ const Auth = {
                 <div class="bv-modal-header">
                     <div>
                         <h3 class="bv-modal-title">Sign In to BlockVision</h3>
-                        <p class="bv-modal-subtitle">Choose how you would like to connect</p>
+                        <p class="bv-modal-subtitle">Choose your preferred sign-in method</p>
                     </div>
                     <button type="button" class="bv-modal-close" id="authModalClose" aria-label="Close modal">&times;</button>
                 </div>
 
-                <!-- 3 Login Options Tabs -->
+                <!-- 3 Options Tabs -->
                 <div class="bv-tabs">
-                    <button type="button" class="bv-tab active" data-tab="metamask">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                            <path d="M21.9 8.8l-8.5-6.2a2.3 2.3 0 0 0-2.8 0L2.1 8.8A2 2 0 0 0 1.3 11v8a2 2 0 0 0 2 2h17.4a2 2 0 0 0 2-2v-8a2 2 0 0 0-.8-2.2zM12 4.4l7.6 5.5-2.4 1.7-5.2-3.8-5.2 3.8-2.4-1.7L12 4.4z"/>
-                        </svg>
-                        <span>MetaMask</span>
-                    </button>
-                    <button type="button" class="bv-tab" data-tab="email">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                            <polyline points="22,6 12,13 2,6"/>
-                        </svg>
-                        <span>Email OTP</span>
-                    </button>
-                    <button type="button" class="bv-tab" data-tab="guest">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="7" r="4"/>
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                        </svg>
-                        <span>Guest Demo</span>
-                    </button>
+                    <button type="button" class="bv-tab active" data-tab="metamask">MetaMask</button>
+                    <button type="button" class="bv-tab" data-tab="email">Email OTP</button>
+                    <button type="button" class="bv-tab" data-tab="guest">Guest ID</button>
                 </div>
 
                 <!-- TAB 1: MetaMask / Web3 -->
                 <div class="bv-tab-pane active" id="tabPane-metamask">
                     ${hasExtension ? `
-                        <div class="bv-card-info">
-                            Connect your Web3 browser extension (MetaMask / Brave / Coinbase) on Sepolia Testnet.
-                        </div>
-                        <button type="button" class="bv-btn bv-btn-metamask" id="btnConnectMetaMask">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
-                                <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
-                                <path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>
-                            </svg>
-                            <span>Connect with MetaMask</span>
-                        </button>
+                        <div class="bv-card-info">Connect your Web3 browser extension (MetaMask / Brave / Coinbase) on Sepolia Testnet.</div>
+                        <button type="button" class="bv-btn bv-btn-metamask" id="btnConnectMetaMask">Connect with MetaMask</button>
                     ` : `
                         <div class="bv-card-info" style="border-left: 3px solid #f59e0b;">
                             <strong>No Web3 extension detected in this browser.</strong><br>
-                            ${isMob ? 'Tap below to open directly in the MetaMask mobile app, or scan with WalletConnect.' : 'Install MetaMask for desktop Chrome, or use <strong>Email OTP</strong> or <strong>Guest Demo</strong> above with zero installation.'}
+                            ${isMob ? 'Tap below to open directly in the MetaMask mobile app, or scan with WalletConnect.' : 'Install MetaMask for desktop Chrome, or use <strong>Email OTP</strong> or <strong>Guest ID</strong> with zero installation.'}
                         </div>
-                        ${isMob ? `
-                            <button type="button" class="bv-btn bv-btn-metamask" id="btnOpenMetaMaskApp" style="margin-bottom: 10px;">
-                                <span>Open in MetaMask App</span>
-                            </button>
-                        ` : ''}
-                        <button type="button" class="bv-btn bv-btn-secondary" id="btnConnectWalletConnect" style="margin-bottom: 10px;">
-                            <span>Connect with WalletConnect</span>
-                        </button>
+                        ${isMob ? `<button type="button" class="bv-btn bv-btn-metamask" id="btnOpenMetaMaskApp" style="margin-bottom: 10px;">Open in MetaMask App</button>` : ''}
+                        <button type="button" class="bv-btn bv-btn-secondary" id="btnConnectWalletConnect" style="margin-bottom: 10px;">Connect with WalletConnect</button>
                         <div style="text-align: center; margin-top: 12px; font-size: 12px;">
-                            <a href="https://metamask.io/download/" target="_blank" rel="noopener noreferrer" style="color: #0071e3; text-decoration: underline;">
-                                Download MetaMask Browser Extension &rarr;
-                            </a>
+                            <a href="https://metamask.io/download/" target="_blank" rel="noopener noreferrer" style="color: #0071e3; text-decoration: underline;">Download MetaMask Browser Extension &rarr;</a>
                         </div>
                     `}
                 </div>
 
-                <!-- TAB 2: Email OTP Login -->
+                <!-- TAB 2: Email OTP Login (Real-time Gmail SMTP) -->
                 <div class="bv-tab-pane" id="tabPane-email">
                     <div id="emailStepRequest">
                         <div class="bv-card-info">
-                            Sign in with your email address. A deterministic Ethereum custodial address is derived on our secure server, enabling permanent asset registration without needing any crypto wallet.
+                            Enter your real Gmail or email address. A real-time 6-digit verification code will be sent to your inbox.
                         </div>
+                        <div id="emailRequestErrorNotice" style="display: none; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; padding: 10px 14px; border-radius: 8px; font-size: 12px; margin-bottom: 12px;"></div>
                         <div class="bv-form-group">
-                            <label class="bv-label" for="authEmailInput">Email Address</label>
+                            <label class="bv-label" for="authEmailInput">Gmail / Email Address</label>
                             <input type="email" id="authEmailInput" class="bv-input" placeholder="e.g. yourname@gmail.com" autocomplete="email">
                         </div>
                         <button type="button" class="bv-btn bv-btn-primary" id="btnRequestOtp">
-                            <span>Send 6-Digit Code</span>
+                            <span id="btnRequestOtpText">Send 6-Digit Code</span>
                         </button>
                     </div>
 
                     <div id="emailStepVerify" style="display: none;">
-                        <div class="bv-card-info">
-                            We generated a 6-digit verification code for <strong id="authEmailTarget"></strong>.
+                        <div class="bv-card-info" style="border-left: 3px solid #10b981;">
+                            <strong>OTP sent to your Gmail!</strong><br>
+                            Please check your <strong>Inbox and Spam folder</strong> at <span id="authEmailTarget" style="font-weight: 700;"></span>.
                         </div>
-                        <div id="authDemoOtpBadgeContainer"></div>
-                        <div class="bv-form-group" style="margin-top: 12px;">
+                        <div id="emailVerifyErrorNotice" style="display: none; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; padding: 10px 14px; border-radius: 8px; font-size: 12px; margin-bottom: 12px;"></div>
+                        <div class="bv-form-group" style="margin-top: 14px;">
                             <label class="bv-label" for="authOtpInput">Enter 6-Digit Code</label>
-                            <input type="text" id="authOtpInput" class="bv-input" placeholder="123456" maxlength="6" inputmode="numeric" pattern="[0-9]*" style="letter-spacing: 4px; font-size: 18px; text-align: center;">
+                            <input type="text" id="authOtpInput" class="bv-input" placeholder="123456" maxlength="6" inputmode="numeric" pattern="[0-9]*" style="letter-spacing: 6px; font-size: 22px; font-weight: 700; text-align: center; font-family: monospace;">
                         </div>
-                        <button type="button" class="bv-btn bv-btn-primary" id="btnVerifyOtp" style="margin-bottom: 8px;">
+                        <button type="button" class="bv-btn bv-btn-primary" id="btnVerifyOtp" style="margin-bottom: 10px;">
                             <span>Verify & Sign In</span>
                         </button>
-                        <button type="button" class="bv-btn bv-btn-secondary" id="btnBackToEmail">
-                            <span>Change Email Address</span>
-                        </button>
+                        <div style="display: flex; gap: 8px; justify-content: space-between;">
+                            <button type="button" class="bv-btn bv-btn-secondary" id="btnResendOtp" style="flex: 1; font-size: 12px;">
+                                <span>Resend OTP</span>
+                            </button>
+                            <button type="button" class="bv-btn bv-btn-secondary" id="btnBackToEmail" style="flex: 1; font-size: 12px;">
+                                <span>Change Email</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <!-- TAB 3: Guest Demo Mode -->
+                <!-- TAB 3: Guest ID (Reusable Login + History Persistence) -->
                 <div class="bv-tab-pane" id="tabPane-guest">
-                    <div class="bv-card-info" style="border-left: 3px solid #10b981;">
-                        <strong>Instant Demo Session (For Viva Presentation)</strong><br>
-                        One-click instant access with an ephemeral Ethereum address.
-                        <ul style="margin: 8px 0 0 16px; padding: 0;">
-                            <li>Upload original photos & generate robust watermarks</li>
-                            <li>Register immutable cryptographic provenance</li>
-                            <li>Instant audit verification & tamper heatmap</li>
-                            <li>Download official vector PDF certificates</li>
-                        </ul>
+                    <div style="display: flex; flex-direction: column; gap: 14px;">
+                        <!-- Section A: Login with existing Guest ID -->
+                        <div class="bv-card-info" style="border-left: 3px solid #0071e3; margin-bottom: 0;">
+                            <strong style="color: #0f172a;">Already have a Guest ID?</strong>
+                            <p style="margin: 4px 0 10px 0; font-size: 12px; color: #64748b;">Enter your previously saved Guest ID to resume your session and restore your upload history.</p>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="authGuestIdInput" class="bv-input" placeholder="GUEST-XXXXXX" value="${savedGid || ''}" maxlength="12" style="text-transform: uppercase; letter-spacing: 2px; font-weight: 700; font-family: monospace; font-size: 14px;">
+                                <button type="button" class="bv-btn bv-btn-primary" id="btnGuestLoginExisting" style="width: auto; padding: 0 16px; white-space: nowrap;">Log In</button>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; align-items: center; text-align: center; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin: 2px 0;">
+                            <span style="flex: 1; border-bottom: 1px solid #e2e8f0;"></span>
+                            <span style="padding: 0 10px;">or</span>
+                            <span style="flex: 1; border-bottom: 1px solid #e2e8f0;"></span>
+                        </div>
+
+                        <!-- Section B: Create New Guest ID -->
+                        <div id="guestCreateSection">
+                            <div class="bv-card-info" style="border-left: 3px solid #10b981; margin-bottom: 10px;">
+                                <strong>Create New Guest ID</strong>
+                                <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748b;">Generates a reusable Guest ID with a persistent custodial wallet. No wallet extension or email required.</p>
+                            </div>
+                            <button type="button" class="bv-btn bv-btn-guest" id="btnCreateGuest">
+                                <span>Create New Guest ID</span>
+                            </button>
+                        </div>
+
+                        <!-- Generated ID Card -->
+                        <div id="guestCreatedCard" style="display: none; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; padding: 16px; text-align: center;">
+                            <div style="font-size: 11px; font-weight: 700; color: #065f46; text-transform: uppercase; letter-spacing: 1px;">Your Guest ID — Save It!</div>
+                            <div id="newGuestIdDisplay" style="font-size: 22px; font-weight: 800; font-family: monospace; letter-spacing: 3px; color: #047857; margin: 8px 0; user-select: all;"></div>
+                            <p style="font-size: 12px; color: #047857; margin-bottom: 12px;">Save this ID to log back in anytime and view all your photos.</p>
+                            <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                                <button type="button" class="bv-btn bv-btn-secondary" id="btnCopyGuestId" style="font-size: 12px; padding: 6px 12px; min-height: 34px; width: auto;">Copy ID</button>
+                                <button type="button" class="bv-btn bv-btn-secondary" id="btnDownloadGuestTxt" style="font-size: 12px; padding: 6px 12px; min-height: 34px; width: auto;">Download .txt</button>
+                                <button type="button" class="bv-btn bv-btn-guest" id="btnEnterGuestSession" style="font-size: 12px; padding: 6px 14px; min-height: 34px; width: auto;">Enter Dashboard &rarr;</button>
+                            </div>
+                        </div>
                     </div>
-                    <button type="button" class="bv-btn bv-btn-guest" id="btnGuestLogin">
-                        <span>Continue as Guest (Instant Demo)</span>
-                    </button>
-                    <p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 10px;">
-                        Note: Asset transfer and revocation require Email or MetaMask authentication.
-                    </p>
                 </div>
             </div>
         </div>
@@ -565,7 +563,6 @@ const Auth = {
         wrapper.innerHTML = modalHtml;
         document.body.appendChild(wrapper.firstElementChild);
 
-        // Wire event listeners
         this.bindModalEvents();
     },
 
@@ -588,71 +585,116 @@ const Auth = {
 
         // Option 1 Buttons
         const btnMetaMask = document.getElementById('btnConnectMetaMask');
-        if (btnMetaMask) {
-            btnMetaMask.onclick = async () => {
-                try {
-                    await this.loginWithWallet();
-                } catch (e) {}
-            };
-        }
+        if (btnMetaMask) btnMetaMask.onclick = () => this.loginWithWallet();
 
         const btnOpenMetaMaskApp = document.getElementById('btnOpenMetaMaskApp');
-        if (btnOpenMetaMaskApp) {
-            btnOpenMetaMaskApp.onclick = () => this.openMetaMaskMobile();
-        }
+        if (btnOpenMetaMaskApp) btnOpenMetaMaskApp.onclick = () => this.openMetaMaskMobile();
 
         const btnWalletConnect = document.getElementById('btnConnectWalletConnect');
-        if (btnWalletConnect) {
-            btnWalletConnect.onclick = () => this.loginWithWalletConnect();
-        }
+        if (btnWalletConnect) btnWalletConnect.onclick = () => this.loginWithWalletConnect();
 
-        // Option 2 Buttons
+        // Option 2 Buttons & Flow
         const emailInput = document.getElementById('authEmailInput');
         const otpInput = document.getElementById('authOtpInput');
         const btnRequestOtp = document.getElementById('btnRequestOtp');
         const btnVerifyOtp = document.getElementById('btnVerifyOtp');
+        const btnResendOtp = document.getElementById('btnResendOtp');
         const btnBackToEmail = document.getElementById('btnBackToEmail');
         const stepRequest = document.getElementById('emailStepRequest');
         const stepVerify = document.getElementById('emailStepVerify');
         const emailTarget = document.getElementById('authEmailTarget');
-        const demoOtpContainer = document.getElementById('authDemoOtpBadgeContainer');
+        const reqErrNotice = document.getElementById('emailRequestErrorNotice');
+        const verErrNotice = document.getElementById('emailVerifyErrorNotice');
 
-        if (btnRequestOtp) {
-            btnRequestOtp.onclick = async () => {
-                const email = emailInput ? emailInput.value.trim() : '';
-                if (!email) {
-                    alert('Please enter your email address.');
-                    return;
+        let resendTimer = null;
+
+        const startResendCountdown = () => {
+            if (!btnResendOtp) return;
+            let countdown = 30;
+            btnResendOtp.disabled = true;
+            btnResendOtp.textContent = `Resend in ${countdown}s`;
+            clearInterval(resendTimer);
+            resendTimer = setInterval(() => {
+                countdown--;
+                if (countdown <= 0) {
+                    clearInterval(resendTimer);
+                    btnResendOtp.disabled = false;
+                    btnResendOtp.textContent = 'Resend OTP';
+                } else {
+                    btnResendOtp.textContent = `Resend in ${countdown}s`;
                 }
-                btnRequestOtp.disabled = true;
-                btnRequestOtp.textContent = 'Sending Code...';
+            }, 1000);
+        };
+
+        const handleSendOtp = async () => {
+            const email = emailInput ? emailInput.value.trim() : '';
+            if (!email) {
+                if (reqErrNotice) {
+                    reqErrNotice.textContent = 'Please enter your Gmail / email address.';
+                    reqErrNotice.style.display = 'block';
+                } else {
+                    alert('Please enter your email address.');
+                }
+                return;
+            }
+            if (reqErrNotice) reqErrNotice.style.display = 'none';
+            if (verErrNotice) verErrNotice.style.display = 'none';
+
+            btnRequestOtp.disabled = true;
+            const textSpan = document.getElementById('btnRequestOtpText');
+            if (textSpan) textSpan.textContent = 'Sending OTP...';
+
+            try {
+                const data = await this.requestEmailOtp(email);
+                if (emailTarget) emailTarget.textContent = email;
+                if (stepRequest) stepRequest.style.display = 'none';
+                if (stepVerify) stepVerify.style.display = 'block';
+                if (otpInput) {
+                    otpInput.value = '';
+                    otpInput.focus();
+                }
+                startResendCountdown();
+                if (typeof Utils !== 'undefined' && Utils.showToast) {
+                    Utils.showToast('OTP Dispatched', 'Verification code sent to your Gmail. Check Inbox + Spam.', 'success');
+                }
+            } catch (err) {
+                console.error('Email request error:', err);
+                const msg = err.message || 'Failed to dispatch OTP code via SMTP.';
+                if (reqErrNotice) {
+                    reqErrNotice.textContent = msg;
+                    reqErrNotice.style.display = 'block';
+                }
+                if (typeof Utils !== 'undefined' && Utils.showToast) {
+                    Utils.showToast('SMTP Error', msg, 'error');
+                }
+            } finally {
+                btnRequestOtp.disabled = false;
+                if (textSpan) textSpan.textContent = 'Send 6-Digit Code';
+            }
+        };
+
+        if (btnRequestOtp) btnRequestOtp.onclick = handleSendOtp;
+
+        if (btnResendOtp) {
+            btnResendOtp.onclick = async () => {
+                const email = emailInput ? emailInput.value.trim() : '';
+                if (!email) return;
+                btnResendOtp.disabled = true;
+                btnResendOtp.textContent = 'Resending...';
                 try {
-                    const data = await this.requestEmailOtp(email);
-                    if (emailTarget) emailTarget.textContent = email;
-                    if (demoOtpContainer) {
-                        demoOtpContainer.innerHTML = '';
-                        if (data.otp_for_demo) {
-                            demoOtpContainer.innerHTML = `
-                                <div class="bv-demo-pill" id="btnFillDemoOtp">
-                                    <span>Demo Code: <strong>${data.otp_for_demo}</strong> (Click to auto-fill)</span>
-                                </div>
-                            `;
-                            const fillPill = document.getElementById('btnFillDemoOtp');
-                            if (fillPill && otpInput) {
-                                fillPill.onclick = () => {
-                                    otpInput.value = data.otp_for_demo;
-                                };
-                            }
-                        }
+                    await this.requestEmailOtp(email);
+                    startResendCountdown();
+                    if (verErrNotice) verErrNotice.style.display = 'none';
+                    if (typeof Utils !== 'undefined' && Utils.showToast) {
+                        Utils.showToast('OTP Resent', 'New code sent to your Gmail.', 'success');
                     }
-                    if (stepRequest) stepRequest.style.display = 'none';
-                    if (stepVerify) stepVerify.style.display = 'block';
-                    if (otpInput) otpInput.focus();
                 } catch (err) {
-                    alert(err.message || 'Failed to send OTP code.');
-                } finally {
-                    btnRequestOtp.disabled = false;
-                    btnRequestOtp.textContent = 'Send 6-Digit Code';
+                    if (verErrNotice) {
+                        verErrNotice.textContent = err.message || 'Failed to resend code.';
+                        verErrNotice.style.display = 'block';
+                    }
+                    btnResendOtp.disabled = false;
+                    btnResendOtp.textContent = 'Resend OTP';
                 }
             };
         }
@@ -662,15 +704,29 @@ const Auth = {
                 const email = emailInput ? emailInput.value.trim() : '';
                 const otp = otpInput ? otpInput.value.trim() : '';
                 if (!otp || otp.length < 6) {
-                    alert('Please enter the 6-digit verification code.');
+                    if (verErrNotice) {
+                        verErrNotice.textContent = 'Please enter the 6-digit verification code from your Gmail.';
+                        verErrNotice.style.display = 'block';
+                    } else {
+                        alert('Please enter the 6-digit verification code.');
+                    }
                     return;
                 }
+                if (verErrNotice) verErrNotice.style.display = 'none';
+
                 btnVerifyOtp.disabled = true;
                 btnVerifyOtp.textContent = 'Verifying...';
                 try {
                     await this.loginWithEmail(email, otp);
                 } catch (err) {
-                    alert(err.message || 'Verification failed.');
+                    const msg = err.message || 'Verification failed.';
+                    if (verErrNotice) {
+                        verErrNotice.textContent = msg;
+                        verErrNotice.style.display = 'block';
+                    }
+                    if (typeof Utils !== 'undefined' && Utils.showToast) {
+                        Utils.showToast('Verification Failed', msg, 'error');
+                    }
                 } finally {
                     btnVerifyOtp.disabled = false;
                     btnVerifyOtp.textContent = 'Verify & Sign In';
@@ -685,19 +741,91 @@ const Auth = {
             };
         }
 
-        // Option 3 Button
-        const btnGuest = document.getElementById('btnGuestLogin');
-        if (btnGuest) {
-            btnGuest.onclick = async () => {
-                btnGuest.disabled = true;
-                btnGuest.textContent = 'Starting Demo Session...';
+        // Option 3: Guest ID Flow
+        const guestIdInput = document.getElementById('authGuestIdInput');
+        const btnGuestLoginExisting = document.getElementById('btnGuestLoginExisting');
+        const btnCreateGuest = document.getElementById('btnCreateGuest');
+        const guestCreatedCard = document.getElementById('guestCreatedCard');
+        const newGuestIdDisplay = document.getElementById('newGuestIdDisplay');
+        const btnCopyGuestId = document.getElementById('btnCopyGuestId');
+        const btnDownloadGuestTxt = document.getElementById('btnDownloadGuestTxt');
+        const btnEnterGuestSession = document.getElementById('btnEnterGuestSession');
+
+        let createdGuestData = null;
+
+        if (btnGuestLoginExisting) {
+            btnGuestLoginExisting.onclick = async () => {
+                const gid = guestIdInput ? guestIdInput.value.trim() : '';
+                if (!gid) {
+                    alert('Please enter your Guest ID (e.g. GUEST-A7K9P2).');
+                    return;
+                }
+                btnGuestLoginExisting.disabled = true;
+                btnGuestLoginExisting.textContent = 'Logging In...';
                 try {
-                    await this.loginAsGuest();
+                    await this.loginWithGuestId(gid);
                 } catch (err) {
-                    alert(err.message || 'Could not start demo session.');
+                    alert(err.message || 'Could not log in with Guest ID.');
                 } finally {
-                    btnGuest.disabled = false;
-                    btnGuest.textContent = 'Continue as Guest (Instant Demo)';
+                    btnGuestLoginExisting.disabled = false;
+                    btnGuestLoginExisting.textContent = 'Log In';
+                }
+            };
+        }
+
+        if (btnCreateGuest) {
+            btnCreateGuest.onclick = async () => {
+                btnCreateGuest.disabled = true;
+                btnCreateGuest.textContent = 'Generating Guest ID...';
+                try {
+                    createdGuestData = await this.createGuestAccount();
+                    if (newGuestIdDisplay) newGuestIdDisplay.textContent = createdGuestData.guestId;
+                    if (guestCreatedCard) guestCreatedCard.style.display = 'block';
+                    if (guestIdInput) guestIdInput.value = createdGuestData.guestId;
+                } catch (err) {
+                    alert(err.message || 'Could not create Guest ID.');
+                } finally {
+                    btnCreateGuest.disabled = false;
+                    btnCreateGuest.textContent = 'Create New Guest ID';
+                }
+            };
+        }
+
+        if (btnCopyGuestId) {
+            btnCopyGuestId.onclick = () => {
+                const gid = createdGuestData?.guestId || (newGuestIdDisplay ? newGuestIdDisplay.textContent : '');
+                if (gid && typeof Utils !== 'undefined') {
+                    Utils.copyToClipboard(gid);
+                }
+            };
+        }
+
+        if (btnDownloadGuestTxt) {
+            btnDownloadGuestTxt.onclick = () => {
+                const gid = createdGuestData?.guestId || (newGuestIdDisplay ? newGuestIdDisplay.textContent : '');
+                const wallet = createdGuestData?.wallet || '';
+                const text = `BlockVision Digital Asset Provenance\nYour Guest ID: ${gid}\nCustodial Wallet: ${wallet}\nNetwork: Ethereum Sepolia Testnet\nWebsite: https://blockvision-nu.vercel.app\n\nKeep this Guest ID safe to restore your photos and view history anytime.\n`;
+                const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `blockvision-${gid}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+        }
+
+        if (btnEnterGuestSession) {
+            btnEnterGuestSession.onclick = () => {
+                if (createdGuestData) {
+                    if (typeof Utils !== 'undefined' && Utils.showToast) {
+                        Utils.showToast('Guest Session Active', `Signed in as ${createdGuestData.guestId}`, 'success');
+                    }
+                    this.closeLoginModal();
+                    this.renderUI();
+                    window.dispatchEvent(new CustomEvent('auth:login', { detail: { wallet: createdGuestData.wallet, loginType: 'guest', guestId: createdGuestData.guestId } }));
                 }
             };
         }
@@ -716,6 +844,7 @@ const Auth = {
             const shortAddr = this.formatAddress(wallet);
             const loginType = this.getLoginType();
             const userEmail = this.getEmail();
+            const guestId = this.getGuestId();
             const etherscanUrl = `https://sepolia.etherscan.io/address/${wallet}`;
 
             let labelHtml = '';
@@ -726,7 +855,11 @@ const Auth = {
                 labelHtml = `<span title="${userEmail} (${wallet})">${userEmail ? userEmail.split('@')[0] : shortAddr}</span>`;
             } else if (loginType === 'guest') {
                 indicatorColor = '#f59e0b'; // Amber
-                labelHtml = `<span title="Guest Demo (${wallet})">Guest (${shortAddr})</span>`;
+                const displayId = guestId || 'Guest';
+                labelHtml = `
+                    <span title="Guest ID: ${displayId} (${wallet})">${displayId} (${shortAddr})</span>
+                    <button type="button" class="wallet-logout-btn" id="guestCopyHeaderBtn" title="Copy Guest ID" style="color: #f59e0b; margin-left: 2px;">Copy</button>
+                `;
             } else {
                 labelHtml = `<a href="${etherscanUrl}" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;" title="${wallet}">${shortAddr}</a>`;
             }
@@ -744,6 +877,16 @@ const Auth = {
                 logoutBtn.addEventListener('click', (e) => {
                     e.preventDefault();
                     Auth.logout(true);
+                });
+            }
+
+            const copyHeaderBtn = document.getElementById('guestCopyHeaderBtn');
+            if (copyHeaderBtn && guestId) {
+                copyHeaderBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (typeof Utils !== 'undefined') {
+                        Utils.copyToClipboard(guestId);
+                    }
                 });
             }
         } else {

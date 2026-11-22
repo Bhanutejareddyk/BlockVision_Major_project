@@ -120,22 +120,50 @@ document.addEventListener('DOMContentLoaded', async () => {
             emptyState.style.display = 'none';
             historyTableBody.innerHTML = '';
 
+            // Update user history banner
+            updateUserBanner();
+
+            let myImages = [];
+            const isLoggedIn = (typeof Auth !== 'undefined' && Auth.isLoggedIn());
+            const loggedInWallet = isLoggedIn ? Auth.getWallet().toLowerCase() : '';
+
+            // 1. Fetch authenticated user's personal uploads
+            if (isLoggedIn) {
+                try {
+                    const myData = await API.getMyImages();
+                    if (myData && myData.success && Array.isArray(myData.images)) {
+                        myImages = myData.images;
+                        statYourImages.textContent = myImages.length;
+                    }
+                } catch (myErr) {
+                    console.warn('Could not load /api/my-images:', myErr);
+                }
+            } else {
+                statYourImages.textContent = '0';
+            }
+
+            // 2. Fetch all public images from blockchain network
             console.log('Calling API.getAllImages...');
-            const data = await API.getAllImages(1, 100); // Load first 100 images
+            const data = await API.getAllImages(1, 100);
             console.log('API response:', data);
             
             if (data.success) {
                 allImages = data.images || [];
-                
-                // Update user images count using logged-in wallet
-                const loggedInWallet = (typeof Auth !== 'undefined' && Auth.isLoggedIn()) ? Auth.getWallet() : userAddress;
-                if (loggedInWallet && allImages.length > 0) {
-                    const userImages = allImages.filter(img => 
-                        img.owner && img.owner.toLowerCase() === loggedInWallet.toLowerCase()
+
+                // Merge myImages into allImages (deduplicating by image_hash)
+                const existingHashes = new Set(allImages.map(img => img.image_hash.toLowerCase()));
+                for (const img of myImages) {
+                    if (!existingHashes.has(img.image_hash.toLowerCase())) {
+                        allImages.unshift(img);
+                        existingHashes.add(img.image_hash.toLowerCase());
+                    }
+                }
+
+                if (loggedInWallet) {
+                    const matchingUserImgs = allImages.filter(img => 
+                        img.owner && img.owner.toLowerCase() === loggedInWallet
                     );
-                    statYourImages.textContent = userImages.length;
-                } else {
-                    statYourImages.textContent = loggedInWallet ? '0' : allImages.length;
+                    statYourImages.textContent = Math.max(matchingUserImgs.length, myImages.length);
                 }
                 
                 if (allImages.length > 0) {
@@ -146,15 +174,47 @@ document.addEventListener('DOMContentLoaded', async () => {
                     emptyState.style.display = 'flex';
                 }
             } else {
-                loadingState.style.display = 'none';
-                emptyState.style.display = 'flex';
-                statYourImages.textContent = '0';
+                if (myImages.length > 0) {
+                    allImages = myImages;
+                    applyFilter();
+                    loadingState.style.display = 'none';
+                } else {
+                    loadingState.style.display = 'none';
+                    emptyState.style.display = 'flex';
+                    statYourImages.textContent = '0';
+                }
             }
         } catch (error) {
             console.error('Failed to load history:', error);
             loadingState.style.display = 'none';
             emptyState.style.display = 'flex';
             Utils.showToast('Error', 'Failed to load history', 'error');
+        }
+    }
+
+    function updateUserBanner() {
+        const banner = document.getElementById('userHistoryBanner');
+        if (!banner) return;
+
+        if (typeof Auth !== 'undefined' && Auth.isLoggedIn()) {
+            const loginType = Auth.getLoginType();
+            const wallet = Auth.getWallet();
+            const shortWallet = Utils.formatAddress(wallet);
+            const email = Auth.getEmail();
+            const guestId = (typeof Auth.getGuestId === 'function') ? Auth.getGuestId() : (localStorage.getItem('blockvision_guest_id') || '');
+
+            let html = '';
+            if (loginType === 'email' && email) {
+                html = `Showing history for: <strong style="color: var(--primary);">${email}</strong> (Wallet: <span style="font-family: monospace;">${shortWallet}</span>)`;
+            } else if (loginType === 'guest') {
+                html = `Showing history for: <strong style="color: #f59e0b;">${guestId || 'Guest Demo'}</strong> (Wallet: <span style="font-family: monospace;">${shortWallet}</span>)`;
+            } else {
+                html = `Showing history for wallet: <strong style="color: var(--primary); font-family: monospace;">${shortWallet}</strong>`;
+            }
+            banner.innerHTML = html;
+            banner.style.display = 'block';
+        } else {
+            banner.style.display = 'none';
         }
     }
 
@@ -177,12 +237,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Apply filter
     function applyFilter() {
         let filtered = [...allImages];
+        const myWallet = (typeof Auth !== 'undefined' && Auth.isLoggedIn()) ? Auth.getWallet().toLowerCase() : (userAddress ? userAddress.toLowerCase() : '');
         
         // Apply filter
-        if (currentFilter === 'mine' && userAddress) {
-            filtered = filtered.filter(img => 
-                img.owner.toLowerCase() === userAddress.toLowerCase()
-            );
+        if (currentFilter === 'mine') {
+            if (myWallet) {
+                filtered = filtered.filter(img => 
+                    img.owner && img.owner.toLowerCase() === myWallet
+                );
+            } else {
+                filtered = [];
+            }
         } else if (currentFilter === 'recent') {
             filtered = filtered.sort((a, b) => b.timestamp - a.timestamp).slice(0, 20);
         }
@@ -191,9 +256,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const searchTerm = searchInput.value.toLowerCase().trim();
         if (searchTerm) {
             filtered = filtered.filter(img => 
-                img.image_hash.toLowerCase().includes(searchTerm) ||
-                img.filename.toLowerCase().includes(searchTerm) ||
-                img.owner.toLowerCase().includes(searchTerm)
+                (img.image_hash && img.image_hash.toLowerCase().includes(searchTerm)) ||
+                (img.filename && img.filename.toLowerCase().includes(searchTerm)) ||
+                (img.owner && img.owner.toLowerCase().includes(searchTerm))
             );
         }
         
@@ -214,10 +279,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         const pageImages = filteredImages.slice(start, end);
         
         if (pageImages.length === 0) {
+            let emptyMsg = 'No images found';
+            if (currentFilter === 'mine') {
+                const loginType = (typeof Auth !== 'undefined') ? Auth.getLoginType() : '';
+                const email = (typeof Auth !== 'undefined') ? Auth.getEmail() : '';
+                const guestId = (typeof Auth !== 'undefined' && typeof Auth.getGuestId === 'function') ? Auth.getGuestId() : (localStorage.getItem('blockvision_guest_id') || '');
+                if (loginType === 'email' && email) {
+                    emptyMsg = `No uploads yet for ${email}. Upload a photo to see it here.`;
+                } else if (loginType === 'guest' && guestId) {
+                    emptyMsg = `No uploads yet for Guest ID ${guestId}. Upload a photo to see it here.`;
+                } else {
+                    emptyMsg = 'No uploads yet for this session. Upload a photo to see it here.';
+                }
+            }
             historyTableBody.innerHTML = `
                 <tr>
                     <td colspan="8" style="text-align: center; padding: 3rem; color: var(--text-muted);">
-                        No images found
+                        ${emptyMsg}
                     </td>
                 </tr>
             `;

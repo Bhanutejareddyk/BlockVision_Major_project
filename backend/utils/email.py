@@ -166,38 +166,78 @@ def send_transfer_alert(old_owner_email, new_owner_email, image_hash, old_wallet
 
 def send_otp_email(to_email, otp):
     """
-    Sends a 6-digit authentication OTP to user's email.
-    Returns True if sent successfully, False otherwise without raising exceptions.
+    Sends real-time 6-digit OTP code to recipient's email using Gmail SMTP with App Password.
+    Returns dict: {'success': True} or {'success': False, 'error': '...'}
     """
-    if not to_email or '@' not in str(to_email):
-        return False
+    import traceback
 
-    subject = "Your BlockVision Verification Code"
-    html_body = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <style>
-            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 24px; }}
-            .container {{ max-width: 520px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; text-align: center; }}
-            .brand {{ font-size: 20px; font-weight: 800; color: #0071e3; letter-spacing: -0.5px; margin-bottom: 8px; }}
-            .otp-box {{ display: inline-block; font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #0071e3; background: #eff6ff; border: 2px dashed #93c5fd; padding: 16px 28px; border-radius: 8px; margin: 24px 0; }}
-            .footer {{ margin-top: 24px; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 14px; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="brand">BlockVision Provenance</div>
-            <h2 style="margin: 8px 0; color: #0f172a;">Sign-in Verification Code</h2>
-            <p style="color: #475569; font-size: 15px;">Enter the 6-digit code below to sign in to your BlockVision account:</p>
-            <div class="otp-box">{otp}</div>
-            <p style="color: #64748b; font-size: 13px;">This verification code will expire in 5 minutes. If you did not request this login, you can safely ignore this email.</p>
-            <div class="footer">
-                BlockVision Digital Asset Provenance &bull; Ethereum Sepolia Testnet
+    if not to_email or '@' not in str(to_email):
+        return {'success': False, 'error': 'Invalid recipient email address.'}
+
+    smtp_host = os.getenv('SMTP_HOST', 'smtp.gmail.com')
+    smtp_port = os.getenv('SMTP_PORT', '587')
+    smtp_user = os.getenv('SMTP_USER')
+    smtp_pass = os.getenv('SMTP_PASS')
+
+    if not (smtp_user and smtp_pass):
+        err_msg = "SMTP not configured: Please set SMTP_USER and SMTP_PASS (Gmail App Password) in environment variables."
+        print(f"[EMAIL ERROR] {err_msg}")
+        return {'success': False, 'error': err_msg}
+
+    try:
+        port = int(smtp_port)
+        subject = f"BlockVision OTP - {otp}"
+        plain_body = f"Your BlockVision OTP is {otp}. Valid for 5 minutes. Do not share."
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 24px; }}
+                .container {{ max-width: 520px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 32px; text-align: center; }}
+                .brand {{ font-size: 22px; font-weight: 800; color: #0071e3; letter-spacing: -0.5px; margin-bottom: 8px; }}
+                .title {{ font-size: 18px; font-weight: 700; color: #0f172a; margin: 12px 0 6px 0; }}
+                .desc {{ color: #475569; font-size: 14px; margin-bottom: 20px; }}
+                .otp-box {{ display: inline-block; font-size: 38px; font-weight: 800; letter-spacing: 8px; color: #0071e3; background: #eff6ff; border: 2px dashed #93c5fd; padding: 14px 28px; border-radius: 10px; margin: 16px 0; }}
+                .warning {{ color: #64748b; font-size: 13px; line-height: 1.5; margin-top: 16px; }}
+                .footer {{ margin-top: 28px; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 14px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="brand">BlockVision</div>
+                <div class="title">Verification Code</div>
+                <p class="desc">Your BlockVision OTP is {otp}. Valid for 5 minutes. Do not share.</p>
+                <div class="otp-box">{otp}</div>
+                <p class="warning">Valid for 5 minutes. If you did not request this code, you can safely ignore this email.</p>
+                <div class="footer">BlockVision Digital Asset Provenance &bull; Sepolia Testnet</div>
             </div>
-        </div>
-    </body>
-    </html>
-    """
-    return send_email(to_email, subject, html_body)
+        </body>
+        </html>
+        """
+
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = f"BlockVision <{smtp_user}>"
+        msg['To'] = to_email
+
+        msg.attach(MIMEText(plain_body, 'plain', 'utf-8'))
+        msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+
+        with smtplib.SMTP(smtp_host, port, timeout=10) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(smtp_user, [to_email], msg.as_string())
+
+        print(f"[EMAIL] Successfully sent OTP '{subject}' to {to_email}")
+        return {'success': True}
+
+    except Exception as e:
+        traceback.print_exc()
+        err_msg = f"SMTP failed: {str(e)}"
+        print(f"[EMAIL ERROR] {err_msg}")
+        return {'success': False, 'error': err_msg}

@@ -11,16 +11,60 @@ history_bp = Blueprint('history', __name__)
 @history_bp.route('/api/my-images', methods=['GET'])
 @require_auth
 def get_my_images():
-    """Get all registered images belonging to the authenticated user's wallet"""
+    """Get all registered images belonging to the authenticated user's wallet, email, or guest ID"""
     try:
-        user_address = g.wallet_address
+        user_address = getattr(g, 'wallet_address', '')
+        user_email = getattr(g, 'user_email', None)
+        user_guest_id = getattr(g, 'guest_id', None)
+        login_type = getattr(g, 'login_type', 'metamask')
+
+        # Fallback resolution by email or guest ID
+        if (not user_address or not user_address.startswith('0x')) and user_email:
+            from utils.email_wallets import get_email_wallet
+            user_address = get_email_wallet(user_email)
+
+        if (not user_address or not user_address.startswith('0x')) and user_guest_id:
+            from utils.guest_wallets import get_guest_wallet
+            user_address = get_guest_wallet(user_guest_id)
+
+        user_address = (user_address or '').lower()
+
         blockchain = get_blockchain()
-        image_hashes = blockchain.get_user_images(user_address)
+        image_hashes = []
+
+        # 1. Primary blockchain query
+        try:
+            image_hashes = blockchain.get_user_images(user_address)
+        except Exception as be:
+            print(f"[HISTORY] Blockchain lookup note: {be}")
+
+        # 2. Local ledger query (merge so local/serverless images are always retained)
+        try:
+            from utils.local_ledger import LocalLedger
+            local_ledger = LocalLedger()
+            local_hashes = local_ledger.get_user_images(user_address)
+            for h in local_hashes:
+                if h not in image_hashes:
+                    image_hashes.append(h)
+        except Exception as le:
+            print(f"[HISTORY] Local ledger query note: {le}")
 
         images = []
         for image_hash in image_hashes:
-            details = blockchain.get_image_details(image_hash)
-            if details.get('exists'):
+            details = None
+            try:
+                details = blockchain.get_image_details(image_hash)
+            except Exception:
+                pass
+
+            if not details or not details.get('exists'):
+                try:
+                    from utils.local_ledger import LocalLedger
+                    details = LocalLedger().get_image_details(image_hash)
+                except Exception:
+                    pass
+
+            if details and details.get('exists'):
                 cid = details.get('ipfsCID') or details.get('ipfs_cid') or ''
                 is_rev = bool(details.get('isRevoked', False))
                 images.append({
@@ -28,17 +72,25 @@ def get_my_images():
                     'owner': details['owner'],
                     'timestamp': details['timestamp'],
                     'registration_date': datetime.fromtimestamp(details['timestamp']).isoformat(),
-                    'filename': details['file_name'],
+                    'filename': details.get('file_name') or details.get('filename') or 'image',
                     'ipfsCID': cid,
                     'ipfsUrl': details.get('ipfsUrl', ''),
                     'isRevoked': is_rev,
                     'status': 'Revoked' if is_rev else 'Active'
                 })
 
+        # Sort newest first
+        images.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+
         return jsonify({
             'success': True,
             'wallet': user_address,
+            'wallet_address': user_address,
+            'email': user_email,
+            'guestId': user_guest_id,
+            'loginType': login_type,
             'total_images': len(images),
+            'count': len(images),
             'images': images
         }), 200
 
@@ -55,12 +107,36 @@ def get_user_history(address):
             return jsonify({'error': f"Invalid Ethereum address: '{address}'"}), 400
 
         blockchain = get_blockchain()
-        image_hashes = blockchain.get_user_images(address)
+        image_hashes = []
+        try:
+            image_hashes = blockchain.get_user_images(address)
+        except Exception:
+            pass
+
+        try:
+            from utils.local_ledger import LocalLedger
+            local_hashes = LocalLedger().get_user_images(address)
+            for h in local_hashes:
+                if h not in image_hashes:
+                    image_hashes.append(h)
+        except Exception:
+            pass
 
         images = []
         for image_hash in image_hashes:
-            details = blockchain.get_image_details(image_hash)
-            if details.get('exists'):
+            details = None
+            try:
+                details = blockchain.get_image_details(image_hash)
+            except Exception:
+                pass
+            if not details or not details.get('exists'):
+                try:
+                    from utils.local_ledger import LocalLedger
+                    details = LocalLedger().get_image_details(image_hash)
+                except Exception:
+                    pass
+
+            if details and details.get('exists'):
                 cid = details.get('ipfsCID') or details.get('ipfs_cid') or ''
                 is_rev = bool(details.get('isRevoked', False))
                 images.append({
@@ -68,7 +144,7 @@ def get_user_history(address):
                     'owner': details['owner'],
                     'timestamp': details['timestamp'],
                     'registration_date': datetime.fromtimestamp(details['timestamp']).isoformat(),
-                    'filename': details['file_name'],
+                    'filename': details.get('file_name') or details.get('filename') or 'image',
                     'ipfsCID': cid,
                     'ipfsUrl': details.get('ipfsUrl', ''),
                     'isRevoked': is_rev,

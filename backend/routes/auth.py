@@ -1,7 +1,7 @@
 import os
+import re
 import time
 import secrets
-import hashlib
 from flask import Blueprint, request, jsonify, g
 from eth_account import Account
 from utils.auth import (
@@ -9,40 +9,31 @@ from utils.auth import (
     get_expected_message,
     verify_signature,
     create_session_token,
-    require_auth,
-    get_secret_key
+    require_auth
 )
 from utils.email import send_otp_email
+from utils.email_wallets import get_or_create_wallet_for_email, get_email_wallet
+from utils.guest_wallets import create_guest_wallet, get_guest_wallet
 
 auth_bp = Blueprint('auth', __name__)
 
-# In-memory OTP storage: {clean_email: {"otp": "123456", "expires_at": timestamp}}
+# In-memory OTP storage: {clean_email: {"otp": "123456", "expires_at": timestamp, "attempts": 0}}
 _email_otps = {}
 OTP_EXPIRY_SECONDS = 300  # 5 minutes
-
-
-def derive_custodial_wallet(email: str) -> str:
-    """
-    Derives a deterministic, persistent Ethereum custodial address from the server secret and email.
-    Guarantees the user always retrieves the exact same wallet across sessions and server restarts.
-    """
-    secret = get_secret_key()
-    seed_hex = hashlib.sha256(f"custodial:{secret}:{email.strip().lower()}".encode('utf-8')).hexdigest()
-    account = Account.from_key("0x" + seed_hex)
-    return account.address.lower()
+EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$')
 
 
 @auth_bp.route('/api/auth/email-request', methods=['POST'])
 def email_request():
     """
-    Generate and send 6-digit OTP code to user's email.
-    If SMTP is unavailable or fails, logs OTP to console and returns it in response for viva/demo.
+    Generate and send 6-digit OTP code to user's real email via Gmail SMTP.
+    Returns 500 with exact error if SMTP configuration or transmission fails.
     """
     try:
         data = request.get_json(silent=True) or {}
         email = (data.get('email') or '').strip().lower()
 
-        if not email or '@' not in email or '.' not in email:
+        if not email or not EMAIL_REGEX.match(email):
             return jsonify({
                 'success': False,
                 'error': 'Please provide a valid email address.'
@@ -52,26 +43,25 @@ def email_request():
         otp = f"{secrets.randbelow(900000) + 100000}"
         _email_otps[email] = {
             'otp': otp,
-            'expires_at': time.time() + OTP_EXPIRY_SECONDS
+            'expires_at': time.time() + OTP_EXPIRY_SECONDS,
+            'attempts': 0
         }
 
-        # Attempt to deliver via SMTP
-        sent = False
-        try:
-            sent = send_otp_email(email, otp)
-        except Exception as mail_err:
-            print(f"[AUTH OTP WARNING] SMTP error for {email}: {mail_err}")
-            sent = False
+        # Send via real SMTP (Gmail)
+        smtp_res = send_otp_email(email, otp)
+        if not smtp_res.get('success'):
+            err = smtp_res.get('error', 'SMTP dispatch failed')
+            print(f"[AUTH OTP FAILURE] Could not send OTP to {email}: {err}")
+            return jsonify({
+                'success': False,
+                'error': err
+            }), 500
 
-        print(f"\n{'='*50}")
-        print(f"[AUTH OTP] Email: {email} | OTP: {otp} | SMTP Sent: {sent}")
-        print(f"{'='*50}\n")
-
+        print(f"[AUTH OTP SUCCESS] Real-time OTP sent to {email}")
         return jsonify({
             'success': True,
-            'message': 'Verification code sent to your email.' if sent else 'OTP generated (logged to server console for demo).',
-            'email': email,
-            'otp_for_demo': otp
+            'message': f'OTP sent to {email}. Please check your Inbox and Spam folder.',
+            'email': email
         }), 200
 
     except Exception as e:
@@ -82,7 +72,7 @@ def email_request():
 @auth_bp.route('/api/auth/email-verify', methods=['POST'])
 def email_verify():
     """
-    Verify OTP code and provision/derive custodial Ethereum wallet + JWT session.
+    Verify OTP code, retrieve or generate persistent custodial Ethereum wallet, and issue JWT.
     """
     try:
         data = request.get_json(silent=True) or {}
@@ -109,19 +99,28 @@ def email_verify():
                 'error': 'Verification code expired. Please request a new code.'
             }), 400
 
-        if record['otp'] != otp:
+        record['attempts'] = record.get('attempts', 0) + 1
+        if record['attempts'] > 3:
+            _email_otps.pop(email, None)
             return jsonify({
                 'success': False,
-                'error': 'Invalid verification code. Please check and try again.'
+                'error': 'Too many failed attempts. Please request a new verification code.'
+            }), 400
+
+        if record['otp'] != otp:
+            remaining = max(0, 3 - record['attempts'])
+            return jsonify({
+                'success': False,
+                'error': f'Invalid verification code. {remaining} attempt(s) remaining.'
             }), 400
 
         # OTP verified - clear from store
         _email_otps.pop(email, None)
 
-        # Derive custodial wallet
-        custodial_wallet = derive_custodial_wallet(email)
+        # Permanent custodial wallet per email (stable across logins and restarts)
+        custodial_wallet = get_or_create_wallet_for_email(email)
 
-        # Generate JWT session token
+        # Generate JWT session token with both wallet and email
         token = create_session_token(custodial_wallet, login_type="email", email=email)
 
         return jsonify({
@@ -140,36 +139,74 @@ def email_verify():
 
 
 @auth_bp.route('/api/auth/guest', methods=['POST'])
-@auth_bp.route('/api/auth/demo-login', methods=['POST'])
-def guest_login():
+def guest_create():
     """
-    Provision instant ephemeral demo wallet without requiring any wallet extension or email.
-    Grants 24h upload, verify, and certificate access.
+    Create a new reusable Guest ID (e.g. GUEST-A7K9P2) with a persistent custodial wallet.
+    User can save this Guest ID and log in again later with their uploads preserved.
     """
     try:
-        data = request.get_json(silent=True) or {}
-        wallet_address = (data.get('walletAddress') or data.get('wallet') or '').strip().lower()
-        if not wallet_address or not wallet_address.startswith('0x') or len(wallet_address) != 42:
-            guest_account = Account.create()
-            wallet_address = guest_account.address.lower()
-
-        is_demo = request.path.endswith('demo-login')
-        login_type = "demo" if is_demo else "guest"
-        token = create_session_token(wallet_address, login_type=login_type)
+        guest_id, wallet_addr = create_guest_wallet()
+        token = create_session_token(wallet_addr, login_type="guest", guest_id=guest_id)
 
         return jsonify({
             'success': True,
+            'guestId': guest_id,
+            'wallet': wallet_addr,
+            'wallet_address': wallet_addr,
+            'loginType': 'guest',
             'token': token,
-            'wallet': wallet_address,
-            'wallet_address': wallet_address,
-            'loginType': login_type,
-            'isDemo': is_demo,
+            'message': 'Save this Guest ID to login again',
+            'expiresIn': 86400
+        }), 200
+
+    except Exception as e:
+        print(f"[GUEST CREATE ERROR] {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@auth_bp.route('/api/auth/guest-login', methods=['POST'])
+def guest_login():
+    """
+    Log in using an existing Guest ID. Restores the user's permanent custodial wallet and upload history.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        guest_id = (data.get('guestId') or data.get('guest_id') or '').strip().upper()
+
+        if not guest_id:
+            return jsonify({
+                'success': False,
+                'error': 'Guest ID is required.'
+            }), 400
+
+        wallet_addr = get_guest_wallet(guest_id)
+        if not wallet_addr:
+            return jsonify({
+                'success': False,
+                'error': 'Guest ID not found. Check spelling or create a new Guest ID.'
+            }), 404
+
+        token = create_session_token(wallet_addr, login_type="guest", guest_id=guest_id)
+
+        return jsonify({
+            'success': True,
+            'guestId': guest_id,
+            'wallet': wallet_addr,
+            'wallet_address': wallet_addr,
+            'loginType': 'guest',
+            'token': token,
             'expiresIn': 86400
         }), 200
 
     except Exception as e:
         print(f"[GUEST LOGIN ERROR] {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@auth_bp.route('/api/auth/demo-login', methods=['POST'])
+def demo_login():
+    """Fallback demo login compatible with legacy endpoint"""
+    return guest_create()
 
 
 @auth_bp.route('/api/auth/nonce', methods=['POST'])
@@ -231,5 +268,6 @@ def auth_me_endpoint():
         'wallet': g.wallet_address,
         'wallet_address': g.wallet_address,
         'loginType': getattr(g, 'login_type', 'metamask'),
-        'email': getattr(g, 'user_email', None)
+        'email': getattr(g, 'user_email', None),
+        'guestId': getattr(g, 'guest_id', None)
     }), 200

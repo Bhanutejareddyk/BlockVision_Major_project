@@ -71,7 +71,7 @@ def verify_signature(wallet_address: str, nonce: str, signature: str) -> bool:
         print(f"Signature verification error: {e}")
         return False
 
-def create_session_token(wallet_address: str, login_type: str = "metamask", email: str = None) -> str:
+def create_session_token(wallet_address: str, login_type: str = "metamask", email: str = None, guest_id: str = None) -> str:
     """Create a 24-hour JWT session token for authenticated wallet address."""
     clean_addr = wallet_address.strip().lower()
     secret = get_secret_key()
@@ -79,12 +79,15 @@ def create_session_token(wallet_address: str, login_type: str = "metamask", emai
     now = datetime.datetime.now(datetime.timezone.utc)
     payload = {
         "wallet": clean_addr,
+        "wallet_address": clean_addr,
         "loginType": login_type,
         "iat": now,
         "exp": now + datetime.timedelta(hours=TOKEN_EXPIRY_HOURS)
     }
     if email:
-        payload["email"] = email
+        payload["email"] = email.strip().lower()
+    if guest_id:
+        payload["guestId"] = guest_id.strip().upper()
     
     token = jwt.encode(payload, secret, algorithm="HS256")
     # If token is bytes in older PyJWT (PyJWT 2.x returns str)
@@ -133,8 +136,9 @@ def require_auth(f):
                 "error": "Invalid or expired session token. Please sign in again."
             }), 401
         
-        g.wallet_address = payload.get("wallet")
+        g.wallet_address = payload.get("wallet") or payload.get("wallet_address")
         g.login_type = payload.get("loginType", "metamask")
         g.user_email = payload.get("email")
+        g.guest_id = payload.get("guestId")
         return f(*args, **kwargs)
     return decorated_function
