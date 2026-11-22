@@ -1,7 +1,5 @@
 // Auth module for BlockVision-2.0
-// Supports 2 Authentication Methods:
-// 1. MetaMask / Web3 (Desktop & Mobile Deep-Link & WalletConnect)
-// 2. Reusable Guest ID (e.g. GUEST-A7K9P2 - persistent history across sessions)
+// Supports MetaMask / Web3 & Reusable Guest ID Authentication
 
 const Auth = {
     TOKEN_KEY: 'blockvision_token',
@@ -287,6 +285,10 @@ const Auth = {
         localStorage.setItem(this.EXPIRES_KEY, String(Date.now() + expiresInMs));
 
         return data;
+    },
+
+    loginAsGuest() {
+        return this.createGuestAccount();
     },
 
     async loginWithGuestId(guestId) {
@@ -656,7 +658,7 @@ const Auth = {
             }
         } else {
             navAuth.innerHTML = `
-                <button class="wallet-btn" id="connectWalletBtn" type="button">
+                <button class="wallet-btn" id="connectWalletBtn" type="button" onclick="connectWallet()">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
                         <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
@@ -669,12 +671,63 @@ const Auth = {
             if (connectBtn) {
                 connectBtn.addEventListener('click', (e) => {
                     e.preventDefault();
-                    Auth.openLoginModal();
+                    window.connectWallet();
                 });
             }
         }
+    },
+
+    updateUI() {
+        return this.renderUI();
     }
 };
+
+// Global function exports for backwards compatibility & inline event handlers
+window.connectWallet = function() {
+    console.log("[BlockVision] connectWallet called");
+    if (typeof Auth !== 'undefined') {
+        Auth.openLoginModal('metamask');
+    }
+};
+
+window.connectWithWalletConnect = function() {
+    if (typeof Auth !== 'undefined') {
+        return Auth.loginWithWalletConnect();
+    }
+};
+
+window.loginAsGuest = function() {
+    if (typeof Auth !== 'undefined') {
+        return Auth.createGuestAccount();
+    }
+};
+
+window.loginWithGuestId = function(id) {
+    if (typeof Auth !== 'undefined') {
+        return Auth.loginWithGuestId(id);
+    }
+};
+
+window.logout = function(reload = true) {
+    if (typeof Auth !== 'undefined') {
+        return Auth.logout(reload);
+    }
+};
+
+window.checkAuth = function(openModal = false) {
+    if (typeof Auth !== 'undefined') {
+        return Auth.checkAuth(openModal);
+    }
+    return false;
+};
+
+window.updateUI = function() {
+    if (typeof Auth !== 'undefined') {
+        return Auth.renderUI();
+    }
+};
+
+window.Auth = Auth;
 
 // Listen for MetaMask account changes (only if logged in with MetaMask)
 if (typeof window !== 'undefined' && window.ethereum) {
@@ -690,8 +743,10 @@ if (typeof window !== 'undefined' && window.ethereum) {
     });
 }
 
-// Auto-inject modal and render UI on DOM ready
+// Auto-inject modal, render UI, and attach listeners on DOM ready
 document.addEventListener('DOMContentLoaded', () => {
     Auth.injectModalDOM();
     Auth.renderUI();
+    console.log("Connect button found:", document.getElementById('connectWalletBtn'));
+    console.log("connectWallet function:", typeof window.connectWallet);
 });
