@@ -95,7 +95,8 @@ const Auth = {
     },
 
     async loginWithWallet() {
-        const btn = document.getElementById('btnConnectMetaMask');
+        console.log("loginWithWallet initiated");
+        const btn = document.getElementById('btnConnectMetaMask') || document.getElementById('btnModalConnectWallet');
         const origText = btn ? btn.textContent : 'Connect with MetaMask';
         if (btn) {
             btn.disabled = true;
@@ -108,13 +109,29 @@ const Auth = {
                     this.openMetaMaskMobile();
                     return;
                 }
-                throw new Error('MetaMask is not installed. Please install MetaMask or use Guest ID.');
+                throw new Error('MetaMask is not installed. Please install MetaMask extension or use Guest ID.');
             }
 
             const wallet = await this.connectWallet();
             const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
 
-            // Step 1: Request cryptographic nonce
+            // Try fast /api/auth/wallet-login
+            try {
+                const wRes = await fetch(`${apiBase}/api/auth/wallet-login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ wallet_address: wallet })
+                });
+                const wData = await wRes.json();
+                if (wRes.ok && wData.token) {
+                    this.saveSession(wData.token, wallet, 'metamask', null, wData.expiresIn);
+                    return wallet;
+                }
+            } catch (errFast) {
+                console.log("wallet-login fallback note:", errFast);
+            }
+
+            // Fallback: Challenge Nonce & Signature
             const nonceRes = await fetch(`${apiBase}/api/auth/nonce`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -125,7 +142,6 @@ const Auth = {
                 throw new Error(nonceData.error || 'Failed to generate authentication challenge.');
             }
 
-            // Step 2: Sign message using personal_sign
             let signature;
             try {
                 signature = await window.ethereum.request({
@@ -139,7 +155,6 @@ const Auth = {
                 throw signErr;
             }
 
-            // Step 3: Verify signature on backend
             const loginRes = await fetch(`${apiBase}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -155,22 +170,8 @@ const Auth = {
                 throw new Error(loginData.error || 'Signature verification failed.');
             }
 
-            // Step 4: Save session
-            localStorage.setItem(this.TOKEN_KEY, loginData.token);
-            localStorage.setItem(this.WALLET_KEY, loginData.wallet.toLowerCase());
-            localStorage.setItem(this.LOGIN_TYPE_KEY, 'metamask');
-            localStorage.removeItem(this.GUEST_ID_KEY);
-            const expiresInMs = (loginData.expiresIn || 86400) * 1000;
-            localStorage.setItem(this.EXPIRES_KEY, String(Date.now() + expiresInMs));
-
-            if (typeof Utils !== 'undefined' && Utils.showToast) {
-                Utils.showToast('Wallet Connected', `Signed in as ${this.formatAddress(wallet)}`, 'success');
-            }
-
-            this.closeLoginModal();
-            this.renderUI();
-            window.dispatchEvent(new CustomEvent('auth:login', { detail: { wallet: loginData.wallet, loginType: 'metamask' } }));
-            return loginData.wallet;
+            this.saveSession(loginData.token, wallet, 'metamask', null, loginData.expiresIn);
+            return wallet;
 
         } catch (err) {
             console.error('Wallet login error:', err);
@@ -187,17 +188,36 @@ const Auth = {
         }
     },
 
+    saveSession(token, wallet, loginType, guestId = null, expiresIn = 86400) {
+        localStorage.setItem(this.TOKEN_KEY, token);
+        localStorage.setItem(this.WALLET_KEY, wallet.toLowerCase());
+        localStorage.setItem(this.LOGIN_TYPE_KEY, loginType);
+        if (guestId) {
+            localStorage.setItem(this.GUEST_ID_KEY, guestId);
+        } else {
+            localStorage.removeItem(this.GUEST_ID_KEY);
+        }
+        const expiresInMs = (expiresIn || 86400) * 1000;
+        localStorage.setItem(this.EXPIRES_KEY, String(Date.now() + expiresInMs));
+
+        if (typeof Utils !== 'undefined' && Utils.showToast) {
+            Utils.showToast('Signed In', `Active as ${this.formatAddress(wallet)}`, 'success');
+        }
+
+        this.closeLoginModal();
+        this.renderUI();
+        window.dispatchEvent(new CustomEvent('auth:login', { detail: { wallet, loginType, guestId } }));
+    },
+
     async loginWithWalletConnect() {
         try {
             if (typeof WalletConnectProvider === 'undefined' && typeof window.WalletConnectProvider === 'undefined') {
-                Utils.showToast('WalletConnect', 'WalletConnect library loading... If not available, please use Guest ID or MetaMask.', 'info');
+                Utils.showToast('WalletConnect', 'WalletConnect loading... If unavailable, please use Guest ID or MetaMask.', 'info');
                 return;
             }
             const ProviderClass = window.WalletConnectProvider?.default || window.WalletConnectProvider;
             const provider = new ProviderClass({
-                rpc: {
-                    11155111: 'https://rpc.sepolia.org'
-                },
+                rpc: { 11155111: 'https://rpc.sepolia.org' },
                 chainId: 11155111,
                 qrcode: true
             });
@@ -211,51 +231,24 @@ const Auth = {
             const wallet = accounts[0].toLowerCase();
             const apiBase = (typeof getApiBase === 'function') ? getApiBase() : '';
 
-            const nonceRes = await fetch(`${apiBase}/api/auth/nonce`, {
+            const res = await fetch(`${apiBase}/api/auth/wallet-login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ walletAddress: wallet })
+                body: JSON.stringify({ wallet_address: wallet })
             });
-            const nonceData = await nonceRes.json();
-            if (!nonceRes.ok || !nonceData.nonce) {
-                throw new Error(nonceData.error || 'Challenge generation failed');
+            const data = await res.json();
+            if (!res.ok || !data.token) {
+                throw new Error(data.error || 'WalletConnect verification failed');
             }
 
-            const signature = await provider.request({
-                method: 'personal_sign',
-                params: [nonceData.message, wallet]
-            });
-
-            const loginRes = await fetch(`${apiBase}/api/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    walletAddress: wallet,
-                    nonce: nonceData.nonce,
-                    signature: signature
-                })
-            });
-
-            const loginData = await loginRes.json();
-            if (!loginRes.ok || !loginData.token) {
-                throw new Error(loginData.error || 'Verification failed');
-            }
-
-            localStorage.setItem(this.TOKEN_KEY, loginData.token);
-            localStorage.setItem(this.WALLET_KEY, loginData.wallet.toLowerCase());
-            localStorage.setItem(this.LOGIN_TYPE_KEY, 'metamask');
-            localStorage.removeItem(this.GUEST_ID_KEY);
-            const expiresInMs = (loginData.expiresIn || 86400) * 1000;
-            localStorage.setItem(this.EXPIRES_KEY, String(Date.now() + expiresInMs));
-
-            this.closeLoginModal();
-            this.renderUI();
-            window.dispatchEvent(new CustomEvent('auth:login', { detail: { wallet: loginData.wallet, loginType: 'metamask' } }));
-            return loginData.wallet;
+            this.saveSession(data.token, wallet, 'metamask', null, data.expiresIn);
+            return wallet;
 
         } catch (err) {
             console.error('WalletConnect error:', err);
-            Utils.showToast('WalletConnect', err.message || 'Connection cancelled', 'warning');
+            if (typeof Utils !== 'undefined' && Utils.showToast) {
+                Utils.showToast('WalletConnect', err.message || 'Connection cancelled', 'warning');
+            }
         }
     },
 
@@ -276,14 +269,7 @@ const Auth = {
             throw new Error(data.error || 'Could not generate Guest ID.');
         }
 
-        // Save session
-        localStorage.setItem(this.TOKEN_KEY, data.token);
-        localStorage.setItem(this.WALLET_KEY, data.wallet.toLowerCase());
-        localStorage.setItem(this.LOGIN_TYPE_KEY, 'guest');
-        localStorage.setItem(this.GUEST_ID_KEY, data.guestId);
-        const expiresInMs = (data.expiresIn || 86400) * 1000;
-        localStorage.setItem(this.EXPIRES_KEY, String(Date.now() + expiresInMs));
-
+        this.saveSession(data.token, data.wallet, 'guest', data.guestId, data.expiresIn);
         return data;
     },
 
@@ -309,20 +295,7 @@ const Auth = {
             throw new Error(data.error || 'Guest ID not found. Check spelling or create a new Guest ID.');
         }
 
-        localStorage.setItem(this.TOKEN_KEY, data.token);
-        localStorage.setItem(this.WALLET_KEY, data.wallet.toLowerCase());
-        localStorage.setItem(this.LOGIN_TYPE_KEY, 'guest');
-        localStorage.setItem(this.GUEST_ID_KEY, data.guestId);
-        const expiresInMs = (data.expiresIn || 86400) * 1000;
-        localStorage.setItem(this.EXPIRES_KEY, String(Date.now() + expiresInMs));
-
-        if (typeof Utils !== 'undefined' && Utils.showToast) {
-            Utils.showToast('Guest Session Loaded', `Logged in with Guest ID: ${data.guestId}`, 'success');
-        }
-
-        this.closeLoginModal();
-        this.renderUI();
-        window.dispatchEvent(new CustomEvent('auth:login', { detail: { wallet: data.wallet, loginType: 'guest', guestId: data.guestId } }));
+        this.saveSession(data.token, data.wallet, 'guest', data.guestId, data.expiresIn);
         return data;
     },
 
@@ -331,7 +304,6 @@ const Auth = {
         localStorage.removeItem(this.WALLET_KEY);
         localStorage.removeItem(this.LOGIN_TYPE_KEY);
         localStorage.removeItem(this.EXPIRES_KEY);
-        // Note: We leave GUEST_ID_KEY in localStorage so the guest login input can prefill it
         this.renderUI();
         window.dispatchEvent(new CustomEvent('auth:logout'));
         if (reload) {
@@ -344,28 +316,36 @@ const Auth = {
     // =========================================================================
 
     openLoginModal(defaultTab = 'metamask') {
-        let modal = document.getElementById('authModal');
+        let modal = document.getElementById('loginModal') || document.getElementById('authModal');
         if (!modal) {
             this.injectModalDOM();
-            modal = document.getElementById('authModal');
+            modal = document.getElementById('loginModal') || document.getElementById('authModal');
         }
         if (modal) {
             modal.style.display = 'flex';
+            modal.classList.add('active');
+            modal.style.visibility = 'visible';
+            modal.style.opacity = '1';
+            modal.style.pointerEvents = 'auto';
             document.body.style.overflow = 'hidden';
             this.switchModalTab(defaultTab);
         }
     },
 
     closeLoginModal() {
-        const modal = document.getElementById('authModal');
+        const modal = document.getElementById('loginModal') || document.getElementById('authModal');
         if (modal) {
             modal.style.display = 'none';
+            modal.classList.remove('active');
+            modal.style.visibility = 'hidden';
+            modal.style.opacity = '0';
+            modal.style.pointerEvents = 'none';
             document.body.style.overflow = '';
         }
     },
 
     switchModalTab(tabName) {
-        const modal = document.getElementById('authModal');
+        const modal = document.getElementById('loginModal') || document.getElementById('authModal');
         if (!modal) return;
 
         const tabs = modal.querySelectorAll('.bv-tab');
@@ -382,29 +362,31 @@ const Auth = {
         panes.forEach(p => {
             if (p.id === `tabPane-${tabName}`) {
                 p.classList.add('active');
+                p.style.display = 'block';
             } else {
                 p.classList.remove('active');
+                p.style.display = 'none';
             }
         });
     },
 
     injectModalDOM() {
-        if (document.getElementById('authModal')) return;
+        if (document.getElementById('loginModal') || document.getElementById('authModal')) return;
 
         const hasExtension = this.isMetaMaskInstalled();
         const isMob = this.isMobile();
         const savedGid = localStorage.getItem(this.GUEST_ID_KEY) || '';
 
         const modalHtml = `
-        <div class="bv-modal" id="authModal" style="display: none;">
-            <div class="bv-modal-backdrop" id="authModalBackdrop"></div>
+        <div class="bv-modal modal" id="loginModal" style="display: none;">
+            <div class="bv-modal-backdrop" id="authModalBackdrop" onclick="closeLoginModal()"></div>
             <div class="bv-modal-dialog">
                 <div class="bv-modal-header">
                     <div>
                         <h3 class="bv-modal-title">Sign In to BlockVision</h3>
                         <p class="bv-modal-subtitle">Choose your preferred sign-in method</p>
                     </div>
-                    <button type="button" class="bv-modal-close" id="authModalClose" aria-label="Close modal">&times;</button>
+                    <button type="button" class="bv-modal-close" id="authModalClose" onclick="closeLoginModal()" aria-label="Close modal">&times;</button>
                 </div>
 
                 <!-- 2 Options Tabs: MetaMask & Guest ID -->
@@ -417,14 +399,14 @@ const Auth = {
                 <div class="bv-tab-pane active" id="tabPane-metamask">
                     ${hasExtension ? `
                         <div class="bv-card-info">Connect your Web3 browser extension (MetaMask / Brave / Coinbase) on Sepolia Testnet.</div>
-                        <button type="button" class="bv-btn bv-btn-metamask" id="btnConnectMetaMask">Connect with MetaMask</button>
+                        <button type="button" class="bv-btn bv-btn-metamask" id="btnConnectMetaMask" onclick="connectWalletWithMetaMask()">Connect with MetaMask</button>
                     ` : `
                         <div class="bv-card-info" style="border-left: 3px solid #f59e0b;">
                             <strong>No Web3 extension detected in this browser.</strong><br>
-                            ${isMob ? 'Tap below to open directly in the MetaMask mobile app, or scan with WalletConnect.' : 'Install MetaMask for desktop Chrome, or use <strong>Guest ID</strong> with zero installation.'}
+                            ${isMob ? 'Tap below to open directly in the MetaMask mobile app, or continue as Guest.' : 'Install MetaMask for desktop Chrome, or use <strong>Guest ID</strong> with zero installation.'}
                         </div>
-                        ${isMob ? `<button type="button" class="bv-btn bv-btn-metamask" id="btnOpenMetaMaskApp" style="margin-bottom: 10px;">Open in MetaMask App</button>` : ''}
-                        <button type="button" class="bv-btn bv-btn-secondary" id="btnConnectWalletConnect" style="margin-bottom: 10px;">Connect with WalletConnect</button>
+                        ${isMob ? `<button type="button" class="bv-btn bv-btn-metamask" id="btnOpenMetaMaskApp" onclick="Auth.openMetaMaskMobile()" style="margin-bottom: 10px;">Open in MetaMask App</button>` : ''}
+                        <button type="button" class="bv-btn bv-btn-secondary" id="btnConnectWalletConnect" onclick="Auth.loginWithWalletConnect()" style="margin-bottom: 10px;">Connect with WalletConnect</button>
                         <div style="text-align: center; margin-top: 12px; font-size: 12px;">
                             <a href="https://metamask.io/download/" target="_blank" rel="noopener noreferrer" style="color: #0071e3; text-decoration: underline;">Download MetaMask Browser Extension &rarr;</a>
                         </div>
@@ -432,7 +414,7 @@ const Auth = {
                 </div>
 
                 <!-- TAB 2: Guest ID (Reusable Login + History Persistence) -->
-                <div class="bv-tab-pane" id="tabPane-guest">
+                <div class="bv-tab-pane" id="tabPane-guest" style="display: none;">
                     <div style="display: flex; flex-direction: column; gap: 14px;">
                         <!-- Section A: Login with existing Guest ID -->
                         <div class="bv-card-info" style="border-left: 3px solid #0071e3; margin-bottom: 0;">
@@ -440,7 +422,7 @@ const Auth = {
                             <p style="margin: 4px 0 10px 0; font-size: 12px; color: #64748b;">Enter your previously saved Guest ID to resume your session and restore your upload history.</p>
                             <div style="display: flex; gap: 8px;">
                                 <input type="text" id="authGuestIdInput" class="bv-input" placeholder="GUEST-XXXXXX" value="${savedGid || ''}" maxlength="12" style="text-transform: uppercase; letter-spacing: 2px; font-weight: 700; font-family: monospace; font-size: 14px;">
-                                <button type="button" class="bv-btn bv-btn-primary" id="btnGuestLoginExisting" style="width: auto; padding: 0 16px; white-space: nowrap;">Log In</button>
+                                <button type="button" class="bv-btn bv-btn-primary" id="btnGuestLoginExisting" onclick="loginWithExistingGuestId()" style="width: auto; padding: 0 16px; white-space: nowrap;">Log In</button>
                             </div>
                         </div>
 
@@ -456,7 +438,7 @@ const Auth = {
                                 <strong>Create New Guest ID</strong>
                                 <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748b;">Generates a reusable Guest ID with a persistent custodial wallet. No wallet extension required.</p>
                             </div>
-                            <button type="button" class="bv-btn bv-btn-guest" id="btnCreateGuest">
+                            <button type="button" class="bv-btn bv-btn-guest" id="btnCreateGuest" onclick="loginAsGuest()">
                                 <span>Create New Guest ID</span>
                             </button>
                         </div>
@@ -467,9 +449,9 @@ const Auth = {
                             <div id="newGuestIdDisplay" style="font-size: 22px; font-weight: 800; font-family: monospace; letter-spacing: 3px; color: #047857; margin: 8px 0; user-select: all;"></div>
                             <p style="font-size: 12px; color: #047857; margin-bottom: 12px;">Save this ID to log back in anytime and view all your photos.</p>
                             <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-                                <button type="button" class="bv-btn bv-btn-secondary" id="btnCopyGuestId" style="font-size: 12px; padding: 6px 12px; min-height: 34px; width: auto;">Copy ID</button>
-                                <button type="button" class="bv-btn bv-btn-secondary" id="btnDownloadGuestTxt" style="font-size: 12px; padding: 6px 12px; min-height: 34px; width: auto;">Download .txt</button>
-                                <button type="button" class="bv-btn bv-btn-guest" id="btnEnterGuestSession" style="font-size: 12px; padding: 6px 14px; min-height: 34px; width: auto;">Enter Dashboard &rarr;</button>
+                                <button type="button" class="bv-btn bv-btn-secondary" onclick="copyGuestId()" style="font-size: 12px; padding: 6px 12px; min-height: 34px; width: auto;">Copy ID</button>
+                                <button type="button" class="bv-btn bv-btn-secondary" onclick="downloadGuestTxt()" style="font-size: 12px; padding: 6px 12px; min-height: 34px; width: auto;">Download .txt</button>
+                                <button type="button" class="bv-btn bv-btn-guest" onclick="closeLoginModal()" style="font-size: 12px; padding: 6px 14px; min-height: 34px; width: auto;">Enter Dashboard &rarr;</button>
                             </div>
                         </div>
                     </div>
@@ -481,125 +463,17 @@ const Auth = {
         const wrapper = document.createElement('div');
         wrapper.innerHTML = modalHtml;
         document.body.appendChild(wrapper.firstElementChild);
-
         this.bindModalEvents();
     },
 
     bindModalEvents() {
-        const modal = document.getElementById('authModal');
+        const modal = document.getElementById('loginModal') || document.getElementById('authModal');
         if (!modal) return;
 
-        // Close button & backdrop
-        const closeBtn = document.getElementById('authModalClose');
-        if (closeBtn) closeBtn.onclick = () => this.closeLoginModal();
-
-        const backdrop = document.getElementById('authModalBackdrop');
-        if (backdrop) backdrop.onclick = () => this.closeLoginModal();
-
-        // Tabs
         const tabs = modal.querySelectorAll('.bv-tab');
         tabs.forEach(tab => {
             tab.onclick = () => this.switchModalTab(tab.dataset.tab);
         });
-
-        // Option 1 Buttons
-        const btnMetaMask = document.getElementById('btnConnectMetaMask');
-        if (btnMetaMask) btnMetaMask.onclick = () => this.loginWithWallet();
-
-        const btnOpenMetaMaskApp = document.getElementById('btnOpenMetaMaskApp');
-        if (btnOpenMetaMaskApp) btnOpenMetaMaskApp.onclick = () => this.openMetaMaskMobile();
-
-        const btnWalletConnect = document.getElementById('btnConnectWalletConnect');
-        if (btnWalletConnect) btnWalletConnect.onclick = () => this.loginWithWalletConnect();
-
-        // Option 2: Guest ID Flow
-        const guestIdInput = document.getElementById('authGuestIdInput');
-        const btnGuestLoginExisting = document.getElementById('btnGuestLoginExisting');
-        const btnCreateGuest = document.getElementById('btnCreateGuest');
-        const guestCreatedCard = document.getElementById('guestCreatedCard');
-        const newGuestIdDisplay = document.getElementById('newGuestIdDisplay');
-        const btnCopyGuestId = document.getElementById('btnCopyGuestId');
-        const btnDownloadGuestTxt = document.getElementById('btnDownloadGuestTxt');
-        const btnEnterGuestSession = document.getElementById('btnEnterGuestSession');
-
-        let createdGuestData = null;
-
-        if (btnGuestLoginExisting) {
-            btnGuestLoginExisting.onclick = async () => {
-                const gid = guestIdInput ? guestIdInput.value.trim() : '';
-                if (!gid) {
-                    alert('Please enter your Guest ID (e.g. GUEST-A7K9P2).');
-                    return;
-                }
-                btnGuestLoginExisting.disabled = true;
-                btnGuestLoginExisting.textContent = 'Logging In...';
-                try {
-                    await this.loginWithGuestId(gid);
-                } catch (err) {
-                    alert(err.message || 'Could not log in with Guest ID.');
-                } finally {
-                    btnGuestLoginExisting.disabled = false;
-                    btnGuestLoginExisting.textContent = 'Log In';
-                }
-            };
-        }
-
-        if (btnCreateGuest) {
-            btnCreateGuest.onclick = async () => {
-                btnCreateGuest.disabled = true;
-                btnCreateGuest.textContent = 'Generating Guest ID...';
-                try {
-                    createdGuestData = await this.createGuestAccount();
-                    if (newGuestIdDisplay) newGuestIdDisplay.textContent = createdGuestData.guestId;
-                    if (guestCreatedCard) guestCreatedCard.style.display = 'block';
-                    if (guestIdInput) guestIdInput.value = createdGuestData.guestId;
-                } catch (err) {
-                    alert(err.message || 'Could not create Guest ID.');
-                } finally {
-                    btnCreateGuest.disabled = false;
-                    btnCreateGuest.textContent = 'Create New Guest ID';
-                }
-            };
-        }
-
-        if (btnCopyGuestId) {
-            btnCopyGuestId.onclick = () => {
-                const gid = createdGuestData?.guestId || (newGuestIdDisplay ? newGuestIdDisplay.textContent : '');
-                if (gid && typeof Utils !== 'undefined') {
-                    Utils.copyToClipboard(gid);
-                }
-            };
-        }
-
-        if (btnDownloadGuestTxt) {
-            btnDownloadGuestTxt.onclick = () => {
-                const gid = createdGuestData?.guestId || (newGuestIdDisplay ? newGuestIdDisplay.textContent : '');
-                const wallet = createdGuestData?.wallet || '';
-                const text = `BlockVision Digital Asset Provenance\nYour Guest ID: ${gid}\nCustodial Wallet: ${wallet}\nNetwork: Ethereum Sepolia Testnet\nWebsite: https://blockvision-nu.vercel.app\n\nKeep this Guest ID safe to restore your photos and view history anytime.\n`;
-                const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `blockvision-${gid}.txt`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            };
-        }
-
-        if (btnEnterGuestSession) {
-            btnEnterGuestSession.onclick = () => {
-                if (createdGuestData) {
-                    if (typeof Utils !== 'undefined' && Utils.showToast) {
-                        Utils.showToast('Guest Session Active', `Signed in as ${createdGuestData.guestId}`, 'success');
-                    }
-                    this.closeLoginModal();
-                    this.renderUI();
-                    window.dispatchEvent(new CustomEvent('auth:login', { detail: { wallet: createdGuestData.wallet, loginType: 'guest', guestId: createdGuestData.guestId } }));
-                }
-            };
-        }
     },
 
     // =========================================================================
@@ -625,7 +499,7 @@ const Auth = {
                 const displayId = guestId || 'Guest';
                 labelHtml = `
                     <span title="Guest ID: ${displayId} (${wallet})">${displayId} (${shortAddr})</span>
-                    <button type="button" class="wallet-logout-btn" id="guestCopyHeaderBtn" title="Copy Guest ID" style="color: #f59e0b; margin-left: 2px;">Copy</button>
+                    <button type="button" class="wallet-logout-btn" id="guestCopyHeaderBtn" onclick="copyGuestId()" title="Copy Guest ID" style="color: #f59e0b; margin-left: 2px;">Copy</button>
                 `;
             } else {
                 labelHtml = `<a href="${etherscanUrl}" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;" title="${wallet}">${shortAddr}</a>`;
@@ -635,27 +509,9 @@ const Auth = {
                 <div class="wallet-badge" title="${wallet}">
                     <span class="wallet-indicator" style="background: ${indicatorColor}; box-shadow: 0 0 6px ${indicatorColor};" aria-hidden="true"></span>
                     ${labelHtml}
-                    <button class="wallet-logout-btn" id="walletLogoutBtn" title="Log out" type="button">Log Out</button>
+                    <button class="wallet-logout-btn" id="walletLogoutBtn" onclick="logout()" title="Log out" type="button">Log Out</button>
                 </div>
             `;
-
-            const logoutBtn = document.getElementById('walletLogoutBtn');
-            if (logoutBtn) {
-                logoutBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    Auth.logout(true);
-                });
-            }
-
-            const copyHeaderBtn = document.getElementById('guestCopyHeaderBtn');
-            if (copyHeaderBtn && guestId) {
-                copyHeaderBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    if (typeof Utils !== 'undefined') {
-                        Utils.copyToClipboard(guestId);
-                    }
-                });
-            }
         } else {
             navAuth.innerHTML = `
                 <button class="wallet-btn" id="connectWalletBtn" type="button" onclick="connectWallet()">
@@ -669,12 +525,14 @@ const Auth = {
             `;
             const connectBtn = document.getElementById('connectWalletBtn');
             if (connectBtn) {
-                connectBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
+                connectBtn.onclick = function(e) {
+                    if (e) e.preventDefault();
                     window.connectWallet();
-                });
+                };
             }
         }
+        console.log("Connect button found:", document.getElementById('connectWalletBtn'));
+        console.log("connectWallet function:", typeof window.connectWallet);
     },
 
     updateUI() {
@@ -682,11 +540,22 @@ const Auth = {
     }
 };
 
-// Global function exports for backwards compatibility & inline event handlers
-window.connectWallet = function() {
-    console.log("[BlockVision] connectWallet called");
+// =========================================================================
+// GLOBAL FUNCTIONS (Directly accessible via inline onclick & script calls)
+// =========================================================================
+
+window.connectWallet = async function() {
+    console.log("connectWallet clicked");
+    console.log("ethereum:", typeof window.ethereum);
     if (typeof Auth !== 'undefined') {
         Auth.openLoginModal('metamask');
+    }
+};
+
+window.connectWalletWithMetaMask = async function() {
+    console.log("connectWalletWithMetaMask called");
+    if (typeof Auth !== 'undefined') {
+        return Auth.loginWithWallet();
     }
 };
 
@@ -697,8 +566,21 @@ window.connectWithWalletConnect = function() {
 };
 
 window.loginAsGuest = function() {
+    console.log("loginAsGuest called");
     if (typeof Auth !== 'undefined') {
         return Auth.createGuestAccount();
+    }
+};
+
+window.loginWithExistingGuestId = function() {
+    const input = document.getElementById('authGuestIdInput');
+    const gid = input ? input.value.trim().toUpperCase() : '';
+    if (!gid) {
+        alert("Please enter your Guest ID (e.g. GUEST-A7K9P2).");
+        return;
+    }
+    if (typeof Auth !== 'undefined') {
+        return Auth.loginWithGuestId(gid);
     }
 };
 
@@ -706,6 +588,43 @@ window.loginWithGuestId = function(id) {
     if (typeof Auth !== 'undefined') {
         return Auth.loginWithGuestId(id);
     }
+};
+
+window.closeLoginModal = function() {
+    if (typeof Auth !== 'undefined') {
+        Auth.closeLoginModal();
+    }
+};
+
+window.copyGuestId = function() {
+    const disp = document.getElementById('newGuestIdDisplay');
+    const gid = (disp && disp.textContent.trim()) ? disp.textContent.trim() : (localStorage.getItem('blockvision_guest_id') || '');
+    if (gid) {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(gid);
+        }
+        if (typeof Utils !== 'undefined' && Utils.showToast) {
+            Utils.showToast('Copied!', `Guest ID ${gid} copied to clipboard`, 'success');
+        } else {
+            alert(`Copied ${gid}`);
+        }
+    }
+};
+
+window.downloadGuestTxt = function() {
+    const disp = document.getElementById('newGuestIdDisplay');
+    const gid = (disp && disp.textContent.trim()) ? disp.textContent.trim() : (localStorage.getItem('blockvision_guest_id') || '');
+    const wallet = localStorage.getItem('blockvision_wallet') || '';
+    const text = `BlockVision Digital Asset Provenance\nYour Guest ID: ${gid}\nCustodial Wallet: ${wallet}\nNetwork: Ethereum Sepolia Testnet\nWebsite: https://blockvision-nu.vercel.app\n\nKeep this Guest ID safe to restore your photos and view history anytime.\n`;
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `blockvision-${gid || 'guest'}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 };
 
 window.logout = function(reload = true) {
@@ -747,6 +666,4 @@ if (typeof window !== 'undefined' && window.ethereum) {
 document.addEventListener('DOMContentLoaded', () => {
     Auth.injectModalDOM();
     Auth.renderUI();
-    console.log("Connect button found:", document.getElementById('connectWalletBtn'));
-    console.log("connectWallet function:", typeof window.connectWallet);
 });

@@ -28,6 +28,7 @@ def guest_create():
         return jsonify({
             'success': True,
             'guestId': guest_id,
+            'guest_id': guest_id,
             'wallet': wallet_addr,
             'wallet_address': wallet_addr,
             'loginType': 'guest',
@@ -103,6 +104,29 @@ def auth_nonce_endpoint():
             'nonce': nonce,
             'message': message,
             'expiresIn': 300
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@auth_bp.route('/api/auth/wallet-login', methods=['POST'])
+def wallet_login_endpoint():
+    """Direct wallet login endpoint returning JWT session token for an Ethereum address"""
+    try:
+        data = request.get_json(silent=True) or {}
+        wallet_address = (data.get('wallet_address') or data.get('walletAddress') or '').strip()
+
+        if not wallet_address or not wallet_address.startswith('0x') or len(wallet_address) != 42:
+            return jsonify({'success': False, 'error': 'Valid 42-character Ethereum address (0x...) is required'}), 400
+
+        token = create_session_token(wallet_address, login_type="metamask")
+        return jsonify({
+            'success': True,
+            'token': token,
+            'wallet': wallet_address.lower(),
+            'wallet_address': wallet_address.lower(),
+            'loginType': 'metamask',
+            'expiresIn': 86400
         }), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
