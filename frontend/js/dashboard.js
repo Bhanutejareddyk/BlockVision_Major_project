@@ -112,13 +112,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (isLoggedIn && wallet) {
             const loginType = (typeof Auth !== 'undefined' && Auth.getLoginType) ? Auth.getLoginType() : 'metamask';
-            const userEmail = (typeof Auth !== 'undefined' && Auth.getEmail) ? Auth.getEmail() : '';
+            const guestId = (typeof Auth !== 'undefined' && typeof Auth.getGuestId === 'function') ? Auth.getGuestId() : (localStorage.getItem('blockvision_guest_id') || '');
 
             let badgeHtml = '';
-            if (loginType === 'email') {
-                badgeHtml = `Signed in with Email: <strong style="color: var(--primary);">${userEmail}</strong> (<span style="font-family: monospace;">${Utils.formatAddress(wallet)}</span>)`;
-            } else if (loginType === 'guest') {
-                badgeHtml = `Demo Mode: <strong style="color: #f59e0b;">Guest Demo</strong> (<span style="font-family: monospace;">${Utils.formatAddress(wallet)}</span>) &bull; <a href="javascript:void(0)" onclick="Auth.openLoginModal('email')" style="color: var(--primary); text-decoration: underline;">Upgrade to Email</a> to persist assets`;
+            if (loginType === 'guest') {
+                badgeHtml = `Signed in as Guest: <strong style="color: #f59e0b;">${guestId || 'Guest Demo'}</strong> (<span style="font-family: monospace;">${Utils.formatAddress(wallet)}</span>)`;
             } else {
                 badgeHtml = `Connected Wallet: <strong style="color: var(--primary);">${Utils.formatAddress(wallet)}</strong> (${wallet})`;
             }
@@ -131,7 +129,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             if (userStatsGrid) userStatsGrid.style.display = 'grid';
         } else {
-            userWalletAddressDisplay.textContent = 'Not signed in. Connect your MetaMask wallet, sign in with Email, or try the instant Guest demo.';
+            userWalletAddressDisplay.textContent = 'Not signed in. Connect your MetaMask wallet or continue with Guest ID.';
             if (userWalletAction) {
                 userWalletAction.innerHTML = `
                     <button class="btn btn-primary" style="font-size: 13px; padding: 6px 14px;" onclick="Auth.openLoginModal()">Sign In / Connect</button>

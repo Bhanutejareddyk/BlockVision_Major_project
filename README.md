@@ -49,10 +49,10 @@
   - Visual tamper heatmap generator computing exact pixel-level differential matrices when a modified image is analyzed against registered records.
   - Backward-compatible LSB steganographic watermarking preserved.
 
-- **Upgrade #7: On-Chain Ownership Transfer & Automated Email Alerts**
+- **Upgrade #7: On-Chain Ownership Transfer & Wallet + Guest ID Login**
   - Smart contract `transferOwnership(string memory _imageHash, address _newOwner)` enabling secondary-market transfers.
   - Tracks `previousOwner` provenance lineage across transactions and certificate audits.
-  - Asynchronous background SMTP email engine alerting owners when their registered asset is verified or transferred.
+  - Wallet + Guest ID login system with persistent custodial account derivation and full mobile support.
 
 - **Upgrade #8 (Final): High-Throughput Batch Processing & Executive Analytics Dashboard**
   - Multi-file parallel batch upload (`POST /api/batch-upload`) and atomic batch registration (`POST /api/batch-register`) for up to 10 images simultaneously.
@@ -116,10 +116,6 @@
    PINATA_SECRET_API_KEY=your_pinata_secret
    PINATA_JWT=your_pinata_jwt
    SECRET_KEY=blockvision-super-secret-jwt-key
-   SMTP_HOST=smtp.gmail.com
-   SMTP_PORT=587
-   SMTP_USER=your_email@gmail.com
-   SMTP_PASS=your_16_char_google_app_password
    ```
 
 4. **Deploy / Verify Smart Contract (Optional)**:
@@ -173,7 +169,6 @@ BlockVision_Major_project/
 │   ├── config.py                       # Environment configuration & fallbacks
 │   ├── deploy.py                       # Sepolia smart contract deployment automation
 │   ├── requirements.txt                # Backend dependencies
-│   ├── EMAIL_SETUP.md                  # SMTP email alert configuration instructions
 │   ├── contracts/
 │   │   ├── ImageVerification.sol       # Solidity smart contract
 │   │   └── compiled/
@@ -185,9 +180,9 @@ BlockVision_Major_project/
 │   │   └── history.py                  # Stats, dashboard, user image history
 │   └── utils/
 │       ├── auth.py                     # MetaMask personal_sign challenge & JWT handler
+│       ├── guest_wallets.py            # Reusable Guest ID generator & custodial wallet
 │       ├── blockchain.py               # Web3.py Sepolia RPC wrapper
 │       ├── local_ledger.py             # Offline blockchain simulator fallback
-│       ├── email.py                    # SMTP email alert dispatcher
 │       ├── encryption.py               # AES-256 file encryption engine
 │       ├── hashing.py                  # SHA-256 and dHash perceptual algorithms
 │       ├── image_handler.py            # File integrity, dimensions, sanitization

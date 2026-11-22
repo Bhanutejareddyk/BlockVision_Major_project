@@ -491,9 +491,6 @@ def upload_and_register():
 def revoke_image_endpoint():
     """Revoke an image registration on blockchain. Only owner can revoke."""
     try:
-        if getattr(g, 'login_type', '') == 'guest':
-            return jsonify({'success': False, 'error': 'Guest cannot revoke - Login with Email to revoke.'}), 403
-
         data = request.get_json(silent=True) or {}
         image_hash = data.get('imageHash') or data.get('image_hash', '')
         image_hash = image_hash.strip()
@@ -545,9 +542,6 @@ def revoke_image_endpoint():
 def transfer_image_endpoint():
     """Transfer ownership of a registered image to a new wallet address"""
     try:
-        if getattr(g, 'login_type', '') == 'guest':
-            return jsonify({'success': False, 'error': 'Guest cannot transfer - Login with Email to transfer.'}), 403
-
         data = request.get_json(silent=True) or {}
         image_hash = (data.get('imageHash') or data.get('image_hash') or '').strip()
         new_owner = (data.get('newOwner') or data.get('new_owner') or '').strip()
@@ -577,21 +571,6 @@ def transfer_image_endpoint():
             return jsonify({'success': False, 'error': 'New owner must be different from current owner'}), 400
 
         result = blockchain.transfer_image(image_hash, user_wallet, new_owner)
-
-        # Trigger email notification non-blocking
-        owner_email = request.headers.get('X-User-Email') or data.get('ownerEmail') or data.get('email')
-        new_owner_email = data.get('newOwnerEmail')
-        if owner_email or new_owner_email:
-            try:
-                import threading
-                from utils.email import send_transfer_alert
-                threading.Thread(
-                    target=send_transfer_alert,
-                    args=(owner_email, new_owner_email, image_hash, user_wallet, new_owner),
-                    daemon=True
-                ).start()
-            except Exception as mail_err:
-                print(f"[EMAIL WARNING] Failed to trigger transfer alert: {mail_err}")
 
         return jsonify({
             'success': True,

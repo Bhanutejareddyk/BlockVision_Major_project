@@ -200,13 +200,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const loginType = Auth.getLoginType();
             const wallet = Auth.getWallet();
             const shortWallet = Utils.formatAddress(wallet);
-            const email = Auth.getEmail();
             const guestId = (typeof Auth.getGuestId === 'function') ? Auth.getGuestId() : (localStorage.getItem('blockvision_guest_id') || '');
 
             let html = '';
-            if (loginType === 'email' && email) {
-                html = `Showing history for: <strong style="color: var(--primary);">${email}</strong> (Wallet: <span style="font-family: monospace;">${shortWallet}</span>)`;
-            } else if (loginType === 'guest') {
+            if (loginType === 'guest') {
                 html = `Showing history for: <strong style="color: #f59e0b;">${guestId || 'Guest Demo'}</strong> (Wallet: <span style="font-family: monospace;">${shortWallet}</span>)`;
             } else {
                 html = `Showing history for wallet: <strong style="color: var(--primary); font-family: monospace;">${shortWallet}</strong>`;
@@ -282,14 +279,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             let emptyMsg = 'No images found';
             if (currentFilter === 'mine') {
                 const loginType = (typeof Auth !== 'undefined') ? Auth.getLoginType() : '';
-                const email = (typeof Auth !== 'undefined') ? Auth.getEmail() : '';
                 const guestId = (typeof Auth !== 'undefined' && typeof Auth.getGuestId === 'function') ? Auth.getGuestId() : (localStorage.getItem('blockvision_guest_id') || '');
-                if (loginType === 'email' && email) {
-                    emptyMsg = `No uploads yet for ${email}. Upload a photo to see it here.`;
-                } else if (loginType === 'guest' && guestId) {
+                if (loginType === 'guest' && guestId) {
                     emptyMsg = `No uploads yet for Guest ID ${guestId}. Upload a photo to see it here.`;
                 } else {
-                    emptyMsg = 'No uploads yet for this session. Upload a photo to see it here.';
+                    emptyMsg = 'No uploads yet for your wallet. Upload a photo to see it here.';
                 }
             }
             historyTableBody.innerHTML = `
@@ -378,53 +372,73 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // Transfer ownership modal handling
+    const transferModal = document.getElementById('transferModal');
+    const transferModalOverlay = document.getElementById('transferModalOverlay');
+    const closeTransferModal = document.getElementById('closeTransferModal');
+    const cancelTransferBtn = document.getElementById('cancelTransferBtn');
+    const confirmTransferBtn = document.getElementById('confirmTransferBtn');
+    const transferImageHash = document.getElementById('transferImageHash');
+    const transferNewOwner = document.getElementById('transferNewOwner');
+    const transferAddressError = document.getElementById('transferAddressError');
+
+    function hideTransferModal() {
+        if (transferModal) transferModal.style.display = 'none';
+        if (transferNewOwner) transferNewOwner.value = '';
+        if (transferAddressError) transferAddressError.style.display = 'none';
+    }
+
+    if (closeTransferModal) closeTransferModal.addEventListener('click', hideTransferModal);
+    if (cancelTransferBtn) cancelTransferBtn.addEventListener('click', hideTransferModal);
+    if (transferModalOverlay) transferModalOverlay.addEventListener('click', hideTransferModal);
+
     // Transfer ownership (global function)
-    window.handleTransfer = window.transferImage = async function(imageHash) {
-        if (typeof Auth !== 'undefined' && Auth.getLoginType && Auth.getLoginType() === 'guest') {
-            alert('Guest cannot transfer - Login with Email to transfer.');
-            if (typeof Auth.openLoginModal === 'function') {
-                Auth.openLoginModal('email');
-            }
-            return;
-        }
-
-        const newOwner = prompt("Enter the new owner's Ethereum wallet address (0x...):");
-        if (!newOwner) return;
-
-        const trimmed = newOwner.trim();
-        if (!/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
-            Utils.showToast('Invalid Address', 'Must be a valid 42-character Ethereum address starting with 0x', 'error');
-            return;
-        }
-
-        if (!confirm(`Are you sure you want to permanently transfer ownership of this image to:\n${trimmed}\n\nYou will no longer be able to manage or revoke this asset.`)) {
-            return;
-        }
-
-        try {
-            Utils.showToast('Transferring', 'Submitting transfer transaction to blockchain...', 'info');
-            const res = await API.transferImage(imageHash, trimmed);
-            if (res.success) {
-                Utils.showToast('Transfer Complete!', `Ownership successfully transferred to ${Utils.formatAddress(trimmed)}`, 'success');
-                await loadHistory();
-            } else {
-                Utils.showToast('Transfer Failed', res.error || 'Failed to transfer ownership', 'error');
-            }
-        } catch (err) {
-            Utils.showToast('Error', err.message || 'Failed to transfer ownership', 'error');
+    window.handleTransfer = window.transferImage = function(imageHash) {
+        if (!imageHash) return;
+        if (transferImageHash) transferImageHash.value = imageHash;
+        if (transferNewOwner) transferNewOwner.value = '';
+        if (transferAddressError) transferAddressError.style.display = 'none';
+        if (transferModal) {
+            transferModal.style.display = 'block';
+            if (transferNewOwner) transferNewOwner.focus();
         }
     };
 
+    if (confirmTransferBtn) {
+        confirmTransferBtn.addEventListener('click', async () => {
+            const hash = transferImageHash ? transferImageHash.value.trim() : '';
+            const newOwner = transferNewOwner ? transferNewOwner.value.trim() : '';
+
+            if (!newOwner || !/^0x[a-fA-F0-9]{40}$/.test(newOwner)) {
+                if (transferAddressError) transferAddressError.style.display = 'block';
+                return;
+            }
+            if (transferAddressError) transferAddressError.style.display = 'none';
+
+            try {
+                confirmTransferBtn.disabled = true;
+                confirmTransferBtn.textContent = 'Transferring...';
+                Utils.showToast('Transferring', 'Submitting transfer transaction to blockchain...', 'info');
+
+                const res = await API.transferImage(hash, newOwner);
+                if (res.success) {
+                    Utils.showToast('Transfer Complete!', `Ownership successfully transferred to ${Utils.formatAddress(newOwner)}`, 'success');
+                    hideTransferModal();
+                    await loadHistory();
+                } else {
+                    Utils.showToast('Transfer Failed', res.error || 'Failed to transfer ownership', 'error');
+                }
+            } catch (err) {
+                Utils.showToast('Error', err.message || 'Failed to transfer ownership', 'error');
+            } finally {
+                confirmTransferBtn.disabled = false;
+                confirmTransferBtn.textContent = 'Transfer Ownership';
+            }
+        });
+    }
+
     // Revoke registration (global function)
     window.handleRevoke = async function(imageHash) {
-        if (typeof Auth !== 'undefined' && Auth.getLoginType && Auth.getLoginType() === 'guest') {
-            alert('Guest cannot revoke - Login with Email to revoke.');
-            if (typeof Auth.openLoginModal === 'function') {
-                Auth.openLoginModal('email');
-            }
-            return;
-        }
-
         if (!confirm("Are you sure you want to revoke this image? This cannot be undone.")) {
             return;
         }

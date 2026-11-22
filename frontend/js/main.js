@@ -179,10 +179,6 @@ const API = {
             formData.append('encrypt', encrypt);
 
             const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
-            const email = localStorage.getItem('bv_email') || '';
-            if (email) {
-                authHeaders['X-User-Email'] = email;
-            }
 
             const url = getApiBase() + '/api/batch-upload';
             console.log("Fetching:", url);
@@ -219,10 +215,6 @@ const API = {
         const timeoutId = setTimeout(() => controller.abort(), 60000);
         try {
             const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
-            const email = localStorage.getItem('bv_email') || '';
-            if (email) {
-                authHeaders['X-User-Email'] = email;
-            }
 
             const url = getApiBase() + '/api/batch-register';
             console.log("Fetching:", url);
@@ -268,10 +260,6 @@ const API = {
             formData.append('encrypt', encrypt);
 
             const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
-            const email = localStorage.getItem('bv_email') || '';
-            if (email) {
-                authHeaders['X-User-Email'] = email;
-            }
 
             const url = getApiBase() + '/api/upload';
             console.log("Fetching:", url);
@@ -310,10 +298,6 @@ const API = {
         const timeoutId = setTimeout(() => controller.abort(), 60000);
         try {
             const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
-            const email = localStorage.getItem('bv_email') || '';
-            if (email) {
-                authHeaders['X-User-Email'] = email;
-            }
 
             const url = getApiBase() + '/api/register';
             console.log("Fetching:", url);
@@ -356,10 +340,6 @@ const API = {
     async transferImage(imageHash, newOwner) {
         try {
             const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
-            const email = localStorage.getItem('bv_email') || '';
-            if (email) {
-                authHeaders['X-User-Email'] = email;
-            }
 
             const response = await fetch(getApiBase() + '/api/transfer', {
                 method: 'POST',
@@ -391,10 +371,6 @@ const API = {
     async revokeImage(imageHash) {
         try {
             const authHeaders = (typeof Auth !== 'undefined' && Auth.authHeaders) ? Auth.authHeaders() : {};
-            const email = localStorage.getItem('bv_email') || '';
-            if (email) {
-                authHeaders['X-User-Email'] = email;
-            }
 
             const response = await fetch(getApiBase() + '/api/revoke', {
                 method: 'POST',
@@ -440,23 +416,13 @@ const API = {
     },
 
     // Verify image
-    async verifyImage(file, notifyEmail = null) {
+    async verifyImage(file) {
         try {
             const formData = new FormData();
             formData.append('image', file);
-            if (notifyEmail) {
-                formData.append('notifyEmail', notifyEmail);
-            }
-
-            const email = notifyEmail || localStorage.getItem('bv_email') || '';
-            const headers = {};
-            if (email) {
-                headers['X-Owner-Email'] = email;
-            }
 
             const response = await fetch(getApiBase() + '/api/verify', {
                 method: 'POST',
-                headers: headers,
                 body: formData
             });
 
@@ -474,22 +440,15 @@ const API = {
     },
 
     // Verify by hash
-    async verifyHash(hash, notifyEmail = null) {
+    async verifyHash(hash) {
         try {
-            const email = notifyEmail || localStorage.getItem('bv_email') || '';
-            const headers = {
-                'Content-Type': 'application/json'
-            };
-            if (email) {
-                headers['X-Owner-Email'] = email;
-            }
-
             const response = await fetch(getApiBase() + '/api/verify-hash', {
                 method: 'POST',
-                headers: headers,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify({
-                    image_hash: hash,
-                    notifyEmail: email
+                    image_hash: hash
                 })
             });
 

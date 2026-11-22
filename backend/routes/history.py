@@ -11,18 +11,13 @@ history_bp = Blueprint('history', __name__)
 @history_bp.route('/api/my-images', methods=['GET'])
 @require_auth
 def get_my_images():
-    """Get all registered images belonging to the authenticated user's wallet, email, or guest ID"""
+    """Get all registered images belonging to the authenticated user's wallet or guest ID"""
     try:
         user_address = getattr(g, 'wallet_address', '')
-        user_email = getattr(g, 'user_email', None)
         user_guest_id = getattr(g, 'guest_id', None)
         login_type = getattr(g, 'login_type', 'metamask')
 
-        # Fallback resolution by email or guest ID
-        if (not user_address or not user_address.startswith('0x')) and user_email:
-            from utils.email_wallets import get_email_wallet
-            user_address = get_email_wallet(user_email)
-
+        # Fallback resolution by guest ID
         if (not user_address or not user_address.startswith('0x')) and user_guest_id:
             from utils.guest_wallets import get_guest_wallet
             user_address = get_guest_wallet(user_guest_id)
@@ -86,7 +81,6 @@ def get_my_images():
             'success': True,
             'wallet': user_address,
             'wallet_address': user_address,
-            'email': user_email,
             'guestId': user_guest_id,
             'loginType': login_type,
             'total_images': len(images),

@@ -36,26 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadVerifyCertBtn = document.getElementById('downloadVerifyCertificate');
     const printVerifyCertBtn = document.getElementById('printVerifyCertificate');
     const downloadCertBtnText = document.getElementById('downloadCertBtnText');
-    const notifyOwnerCheckbox = document.getElementById('notifyOwnerCheckbox');
-    const verifyEmailBox = document.getElementById('verifyEmailBox');
-    const verifyEmailInput = document.getElementById('verifyEmailInput');
-
-    if (notifyOwnerCheckbox) {
-        if (verifyEmailInput) {
-            verifyEmailInput.value = localStorage.getItem('bv_email') || '';
-        }
-        notifyOwnerCheckbox.addEventListener('change', () => {
-            if (verifyEmailBox) {
-                verifyEmailBox.style.display = notifyOwnerCheckbox.checked ? 'block' : 'none';
-            }
-        });
-    }
-
-    function getNotifyEmail() {
-        if (!notifyOwnerCheckbox || !notifyOwnerCheckbox.checked) return null;
-        const val = verifyEmailInput ? verifyEmailInput.value.trim() : '';
-        return val || localStorage.getItem('bv_email') || null;
-    }
 
     // Tab switching
     tabButtons.forEach(btn => {
@@ -241,8 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
             verifyProgressBar.style.display = 'block';
             verifyProgressFill.style.width = '50%';
 
-            const notifyEmail = getNotifyEmail();
-            const result = await API.verifyImage(selectedFile, notifyEmail);
+            const result = await API.verifyImage(selectedFile);
             console.log("Verify image response:", result);
             
             verifyProgressFill.style.width = '100%';
@@ -270,8 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
             verifyProgressBar.style.display = 'block';
             verifyProgressFill.style.width = '50%';
 
-            const notifyEmail = getNotifyEmail();
-            const result = await API.verifyHash(hash, notifyEmail);
+            const result = await API.verifyHash(hash);
             console.log("Verify hash response:", result);
             
             verifyProgressFill.style.width = '100%';

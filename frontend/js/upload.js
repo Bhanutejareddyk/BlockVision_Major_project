@@ -56,7 +56,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadCertificate = document.getElementById('downloadCertificate');
     const printCertificate = document.getElementById('printCertificate');
     const uploadAnother = document.getElementById('uploadAnother');
-    const alertEmailInput = document.getElementById('alertEmailInput');
     const batchModeOption = document.getElementById('batchModeOption');
     const batchFileInput = document.getElementById('batchFileInput');
 
@@ -64,18 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedBatchFiles = [];
     let selectedFile = null;
     let uploadedData = null;
-
-    if (alertEmailInput) {
-        alertEmailInput.value = localStorage.getItem('bv_email') || '';
-        alertEmailInput.addEventListener('input', () => {
-            const val = alertEmailInput.value.trim();
-            if (val) {
-                localStorage.setItem('bv_email', val);
-            } else {
-                localStorage.removeItem('bv_email');
-            }
-        });
-    }
 
     if (batchModeOption) {
         batchModeOption.checked = false; // Default batch mode = OFF
@@ -407,10 +394,6 @@ document.addEventListener('DOMContentLoaded', () => {
     async function uploadImage() {
         console.log("Starting uploadImage for:", selectedFile.name);
         try {
-            if (alertEmailInput && alertEmailInput.value.trim()) {
-                localStorage.setItem('bv_email', alertEmailInput.value.trim());
-            }
-
             progressBar.style.display = 'block';
             progressFill.style.width = '30%';
 
@@ -523,10 +506,6 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleBatchUploadAndRegister() {
         console.log("Starting handleBatchUploadAndRegister for files:", selectedBatchFiles.length);
         try {
-            if (alertEmailInput && alertEmailInput.value.trim()) {
-                localStorage.setItem('bv_email', alertEmailInput.value.trim());
-            }
-
             progressBar.style.display = 'block';
             progressFill.style.width = '20%';
 

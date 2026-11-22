@@ -71,7 +71,7 @@ def verify_signature(wallet_address: str, nonce: str, signature: str) -> bool:
         print(f"Signature verification error: {e}")
         return False
 
-def create_session_token(wallet_address: str, login_type: str = "metamask", email: str = None, guest_id: str = None) -> str:
+def create_session_token(wallet_address: str, login_type: str = "metamask", guest_id: str = None) -> str:
     """Create a 24-hour JWT session token for authenticated wallet address."""
     clean_addr = wallet_address.strip().lower()
     secret = get_secret_key()
@@ -84,13 +84,10 @@ def create_session_token(wallet_address: str, login_type: str = "metamask", emai
         "iat": now,
         "exp": now + datetime.timedelta(hours=TOKEN_EXPIRY_HOURS)
     }
-    if email:
-        payload["email"] = email.strip().lower()
     if guest_id:
         payload["guestId"] = guest_id.strip().upper()
     
     token = jwt.encode(payload, secret, algorithm="HS256")
-    # If token is bytes in older PyJWT (PyJWT 2.x returns str)
     if isinstance(token, bytes):
         token = token.decode("utf-8")
     return token
@@ -117,7 +114,7 @@ def verify_session_token(token: str):
 def require_auth(f):
     """
     Decorator for routes requiring user authentication via JWT bearer token.
-    Populates Flask's g.wallet_address, g.login_type, and g.user_email.
+    Populates Flask's g.wallet_address, g.login_type, and g.guest_id.
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -125,7 +122,7 @@ def require_auth(f):
         if not auth_header or not auth_header.startswith("Bearer "):
             return jsonify({
                 "success": False,
-                "error": "Authentication required. Please connect wallet, use email, or continue as guest."
+                "error": "Authentication required. Please connect wallet or continue as guest."
             }), 401
         
         token = auth_header.split(" ", 1)[1].strip()
@@ -138,7 +135,6 @@ def require_auth(f):
         
         g.wallet_address = payload.get("wallet") or payload.get("wallet_address")
         g.login_type = payload.get("loginType", "metamask")
-        g.user_email = payload.get("email")
         g.guest_id = payload.get("guestId")
         return f(*args, **kwargs)
     return decorated_function

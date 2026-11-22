@@ -303,7 +303,7 @@ If you've completed all steps, you now have a fully functional blockchain image 
 1. Customize the UI colors and branding
 2. Add user authentication
 3. Implement batch upload
-4. Add email notifications
+4. Add analytics and reporting
 5. Deploy to production
 
 ## 💡 Tips
