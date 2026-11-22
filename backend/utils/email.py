@@ -162,3 +162,42 @@ def send_transfer_alert(old_owner_email, new_owner_email, image_hash, old_wallet
     res1 = send_email(old_owner_email, subject, html_body) if old_owner_email else False
     res2 = send_email(new_owner_email, subject, html_body) if new_owner_email else False
     return res1 or res2
+
+
+def send_otp_email(to_email, otp):
+    """
+    Sends a 6-digit authentication OTP to user's email.
+    Returns True if sent successfully, False otherwise without raising exceptions.
+    """
+    if not to_email or '@' not in str(to_email):
+        return False
+
+    subject = "Your BlockVision Verification Code"
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 24px; }}
+            .container {{ max-width: 520px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; text-align: center; }}
+            .brand {{ font-size: 20px; font-weight: 800; color: #0071e3; letter-spacing: -0.5px; margin-bottom: 8px; }}
+            .otp-box {{ display: inline-block; font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #0071e3; background: #eff6ff; border: 2px dashed #93c5fd; padding: 16px 28px; border-radius: 8px; margin: 24px 0; }}
+            .footer {{ margin-top: 24px; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 14px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="brand">BlockVision Provenance</div>
+            <h2 style="margin: 8px 0; color: #0f172a;">Sign-in Verification Code</h2>
+            <p style="color: #475569; font-size: 15px;">Enter the 6-digit code below to sign in to your BlockVision account:</p>
+            <div class="otp-box">{otp}</div>
+            <p style="color: #64748b; font-size: 13px;">This verification code will expire in 5 minutes. If you did not request this login, you can safely ignore this email.</p>
+            <div class="footer">
+                BlockVision Digital Asset Provenance &bull; Ethereum Sepolia Testnet
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return send_email(to_email, subject, html_body)

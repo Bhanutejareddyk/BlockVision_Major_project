@@ -111,18 +111,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!userWalletAddressDisplay) return;
 
         if (isLoggedIn && wallet) {
-            userWalletAddressDisplay.innerHTML = `Connected Wallet: <strong style="color: var(--primary);">${Utils.formatAddress(wallet)}</strong> (${wallet})`;
+            const loginType = (typeof Auth !== 'undefined' && Auth.getLoginType) ? Auth.getLoginType() : 'metamask';
+            const userEmail = (typeof Auth !== 'undefined' && Auth.getEmail) ? Auth.getEmail() : '';
+
+            let badgeHtml = '';
+            if (loginType === 'email') {
+                badgeHtml = `Signed in with Email: <strong style="color: var(--primary);">${userEmail}</strong> (<span style="font-family: monospace;">${Utils.formatAddress(wallet)}</span>)`;
+            } else if (loginType === 'guest') {
+                badgeHtml = `Demo Mode: <strong style="color: #f59e0b;">Guest Demo</strong> (<span style="font-family: monospace;">${Utils.formatAddress(wallet)}</span>) &bull; <a href="javascript:void(0)" onclick="Auth.openLoginModal('email')" style="color: var(--primary); text-decoration: underline;">Upgrade to Email</a> to persist assets`;
+            } else {
+                badgeHtml = `Connected Wallet: <strong style="color: var(--primary);">${Utils.formatAddress(wallet)}</strong> (${wallet})`;
+            }
+
+            userWalletAddressDisplay.innerHTML = badgeHtml;
             if (userWalletAction) {
                 userWalletAction.innerHTML = `
-                    <button class="btn btn-secondary" style="font-size: 12px; padding: 4px 10px;" onclick="Auth.logout()">Disconnect</button>
+                    <button class="btn btn-secondary" style="font-size: 12px; padding: 4px 10px;" onclick="Auth.logout()">Log Out</button>
                 `;
             }
             if (userStatsGrid) userStatsGrid.style.display = 'grid';
         } else {
-            userWalletAddressDisplay.textContent = 'Connect your MetaMask wallet to view your personal assets, active images, and transferred provenance.';
+            userWalletAddressDisplay.textContent = 'Not signed in. Connect your MetaMask wallet, sign in with Email, or try the instant Guest demo.';
             if (userWalletAction) {
                 userWalletAction.innerHTML = `
-                    <button class="btn btn-primary" style="font-size: 13px; padding: 6px 14px;" onclick="Auth.loginWithWallet()">Connect Wallet</button>
+                    <button class="btn btn-primary" style="font-size: 13px; padding: 6px 14px;" onclick="Auth.openLoginModal()">Sign In / Connect</button>
                 `;
             }
             if (userStatsGrid) userStatsGrid.style.display = 'none';

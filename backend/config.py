@@ -36,17 +36,24 @@ class ConfigMeta(type):
     @property
     def ETHEREUM_NODE_URL(cls):
         load_app_env()
-        url = os.getenv('ETHEREUM_NODE_URL', 'https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}')
+        url = os.getenv('ETHEREUM_NODE_URL', 'http://127.0.0.1:7545')
         if '${ALCHEMY_API_KEY}' in url:
             alchemy_key = os.getenv('ALCHEMY_API_KEY', '').strip()
             if alchemy_key and alchemy_key != 'YOUR_ALCHEMY_API_KEY':
                 url = url.replace('${ALCHEMY_API_KEY}', alchemy_key)
-        return url
+            else:
+                url = 'http://127.0.0.1:7545'
+        return url or 'http://127.0.0.1:7545'
     
     @property
     def CHAIN_ID(cls):
         load_app_env()
-        return int(os.getenv('CHAIN_ID', '11155111'))
+        node_url = cls.ETHEREUM_NODE_URL
+        default_chain = '1337' if ('127.0.0.1' in node_url or 'localhost' in node_url or '7545' in node_url) else '11155111'
+        val = os.getenv('CHAIN_ID')
+        if not val or (default_chain == '1337' and val == '11155111'):
+            return int(default_chain)
+        return int(val)
     
     @property
     def NETWORK_ID(cls):

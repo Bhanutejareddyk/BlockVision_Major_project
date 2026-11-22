@@ -1,5 +1,6 @@
 {
-  "ImageVerification": "0xa1eeA513d0263CB2E3eA45100110B88929bA53cc",
-  "network": "ganache",
-  "deployedAt": "2026-11-20T20:37:41.431850"
+  "ImageVerification": "0x9BC7B2c62E077D4b90951C8C8Da9807502Cd377e",
+  "network": "local",
+  "chainId": 1337,
+  "deployedAt": "2026-11-22T16:04:31.911007"
 }

@@ -302,6 +302,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Transfer ownership (global function)
     window.handleTransfer = window.transferImage = async function(imageHash) {
+        if (typeof Auth !== 'undefined' && Auth.getLoginType && Auth.getLoginType() === 'guest') {
+            alert('Guest cannot transfer - Login with Email to transfer.');
+            if (typeof Auth.openLoginModal === 'function') {
+                Auth.openLoginModal('email');
+            }
+            return;
+        }
+
         const newOwner = prompt("Enter the new owner's Ethereum wallet address (0x...):");
         if (!newOwner) return;
 
@@ -331,6 +339,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Revoke registration (global function)
     window.handleRevoke = async function(imageHash) {
+        if (typeof Auth !== 'undefined' && Auth.getLoginType && Auth.getLoginType() === 'guest') {
+            alert('Guest cannot revoke - Login with Email to revoke.');
+            if (typeof Auth.openLoginModal === 'function') {
+                Auth.openLoginModal('email');
+            }
+            return;
+        }
+
         if (!confirm("Are you sure you want to revoke this image? This cannot be undone.")) {
             return;
         }

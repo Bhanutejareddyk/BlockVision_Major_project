@@ -42,8 +42,15 @@ def run_tests():
     print("-" * 65)
 
     if not contract_addr:
-        print("[FAIL] CONTRACT_ADDRESS is empty. Please run: python deploy.py")
-        return False
+        print("[INFO] CONTRACT_ADDRESS is not set. Auto-deploying contract first...")
+        try:
+            from deploy import deploy
+            contract_addr = deploy()
+            Config.reload()
+            print(f"[PASS] Successfully auto-deployed contract to: {contract_addr}")
+        except Exception as e:
+            print(f"[FAIL] Auto-deployment failed: {e}")
+            return False
 
     # 1. Connect to blockchain
     w3 = Web3(Web3.HTTPProvider(node_url))

@@ -98,53 +98,69 @@ def compile_contract(solc_path):
     return abi, bytecode
 
 
-def update_env_contract_address(filepath, contract_address):
-    """Update CONTRACT_ADDRESS in given .env file while preserving comments and structure"""
+def update_env_variable(filepath, key, value):
+    """Update or append an environment variable in given .env file while preserving comments"""
     if not os.path.exists(filepath):
         return
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
-    if re.search(r"^CONTRACT_ADDRESS=.*$", content, flags=re.MULTILINE):
-        new_content = re.sub(r"^CONTRACT_ADDRESS=.*$", f"CONTRACT_ADDRESS={contract_address}", content, flags=re.MULTILINE)
+    pattern = rf"^{re.escape(key)}=.*$"
+    if re.search(pattern, content, flags=re.MULTILINE):
+        new_content = re.sub(pattern, f"{key}={value}", content, flags=re.MULTILINE)
     else:
-        new_content = content.rstrip() + f"\nCONTRACT_ADDRESS={contract_address}\n"
+        new_content = content.rstrip() + f"\n{key}={value}\n"
 
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(new_content)
 
 
-def deploy():
-    """Main deployment routine for Sepolia Testnet"""
-    node_url = os.getenv("ETHEREUM_NODE_URL", "").strip()
+def update_env_contract_address(filepath, contract_address):
+    """Update CONTRACT_ADDRESS in given .env file while preserving comments and structure"""
+    update_env_variable(filepath, "CONTRACT_ADDRESS", contract_address)
 
-    # Step Check: Ensure we are not on Ganache / localhost
-    if not node_url or "127.0.0.1" in node_url or "localhost" in node_url or "7545" in node_url:
-        print("ERROR: Still on Ganache, update .env to Sepolia")
-        sys.exit(1)
+
+def deploy():
+    """Main deployment routine supporting Ganache Local and Sepolia Testnet"""
+    node_url = os.getenv("ETHEREUM_NODE_URL", "").strip()
 
     # Expand ${ALCHEMY_API_KEY} template variable if present
     if "${ALCHEMY_API_KEY}" in node_url:
         alchemy_key = os.getenv("ALCHEMY_API_KEY", "").strip()
         if alchemy_key and alchemy_key != "YOUR_ALCHEMY_API_KEY":
             node_url = node_url.replace("${ALCHEMY_API_KEY}", alchemy_key)
+        else:
+            # Template variable without actual key - check local node
+            node_url = ""
 
-    if node_url.endswith("/v2/") or node_url.endswith("/v2") or "${ALCHEMY_API_KEY}" in node_url:
-        print("ERROR: Alchemy Sepolia API Key missing in .env.")
-        print("Please replace ${ALCHEMY_API_KEY} in backend/.env with your Alchemy API key from https://dashboard.alchemy.com")
+    # Check if node_url is valid, or fallback to Ganache / localhost
+    candidates = []
+    if node_url and not node_url.endswith("/v2/") and not node_url.endswith("/v2"):
+        candidates.append(node_url)
+    candidates.extend(["http://127.0.0.1:7545", "http://127.0.0.1:8545", "http://localhost:7545", "http://localhost:8545"])
+
+    w3 = None
+    connected_url = None
+    for candidate in candidates:
+        try:
+            test_w3 = Web3(Web3.HTTPProvider(candidate, request_kwargs={"timeout": 5}))
+            if test_w3.is_connected():
+                w3 = test_w3
+                connected_url = candidate
+                break
+        except Exception:
+            continue
+
+    if not w3 or not connected_url:
+        print("\n[ERROR] Cannot connect to any Ethereum node.")
+        print("Please start Ganache on port 7545, or configure a valid Sepolia RPC URL in .env.")
         sys.exit(1)
 
-    chain_id = int(os.getenv("CHAIN_ID", "11155111"))
+    is_local = "127.0.0.1" in connected_url or "localhost" in connected_url or "7545" in connected_url or "8545" in connected_url
+    network_name = "Ganache / Localhost" if is_local else "Sepolia / Remote Testnet"
+    chain_id = w3.eth.chain_id
 
-    # Connect to Web3 provider
-    w3 = Web3(Web3.HTTPProvider(node_url, request_kwargs={"timeout": 60}))
-
-    if not w3.is_connected():
-        print(f"\n[ERROR] Cannot connect to Ethereum node at {node_url}")
-        print("Please check your internet connection and verify your Alchemy Sepolia URL in .env.")
-        sys.exit(1)
-
-    print(f"\nConnected to Sepolia Node at: {node_url}")
+    print(f"\nConnected to {network_name} at: {connected_url}")
     print(f"Network Chain ID: {chain_id}")
 
     # Compile contract
@@ -154,23 +170,41 @@ def deploy():
     # Determine deployer private key and account
     private_key = os.getenv("PRIVATE_KEY", "").strip()
     if not private_key:
-        print("[ERROR] PRIVATE_KEY is not defined in .env")
-        sys.exit(1)
+        private_key = "0x8baf991066784ad0b7a6e6a4750ffcb74bc1f9b402f31065939ff21d7f6f5e89"
+
+    if not private_key.startswith("0x"):
+        private_key = "0x" + private_key
 
     account = Account.from_key(private_key)
     account_address = account.address
     balance = w3.eth.get_balance(account_address)
 
     print(f"Deployer Account: {account_address}")
-    print(f"Account Balance: {w3.from_wei(balance, 'ether')} SepoliaETH")
+    print(f"Account Balance: {w3.from_wei(balance, 'ether')} ETH")
+
+    # If on local network and balance is low, auto-fund from first Ganache account
+    if is_local and balance < w3.to_wei(1, "ether") and len(w3.eth.accounts) > 0:
+        funding_source = w3.eth.accounts[0]
+        print(f"Funding deployer account with 10 ETH from local account {funding_source}...")
+        try:
+            tx = w3.eth.send_transaction({
+                "from": funding_source,
+                "to": account_address,
+                "value": w3.to_wei(10, "ether")
+            })
+            w3.eth.wait_for_transaction_receipt(tx)
+            balance = w3.eth.get_balance(account_address)
+            print(f"New Balance: {w3.from_wei(balance, 'ether')} ETH")
+        except Exception as fe:
+            print(f"[WARN] Auto-funding failed: {fe}")
 
     if balance == 0:
-        print(f"\n[ERROR] Account {account_address} has 0 SepoliaETH.")
-        print("Please get free SepoliaETH from https://sepoliafaucet.com or https://alchemy.com/faucets/ethereum-sepolia")
+        print(f"\n[ERROR] Account {account_address} has 0 ETH on {connected_url}.")
+        print("Please fund this account before deploying.")
         sys.exit(1)
 
     # Deploy contract
-    print("\nDeploying ImageVerification contract to Sepolia Testnet...")
+    print(f"\nDeploying ImageVerification contract to {network_name}...")
     contract_factory = w3.eth.contract(abi=abi, bytecode=bytecode)
 
     nonce = w3.eth.get_transaction_count(account_address)
@@ -189,34 +223,40 @@ def deploy():
     tx_hash = w3.eth.send_raw_transaction(raw_tx)
 
     print(f"Transaction submitted: {tx_hash.hex()}")
-    print("Waiting for transaction confirmation on Sepolia (this typically takes 10-20 seconds)...")
+    print("Waiting for transaction confirmation...")
 
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
     contract_address = receipt.contractAddress
 
     print("=" * 60)
     print(f"Deployed at: {contract_address}")
-    print(f"Verify on: https://sepolia.etherscan.io/address/{contract_address}")
+    if not is_local:
+        print(f"Verify on: https://sepolia.etherscan.io/address/{contract_address}")
+        print(f"Verify Tx on: https://sepolia.etherscan.io/tx/{tx_hash.hex()}")
     print(f"Transaction Hash: {tx_hash.hex()}")
-    print(f"Verify Tx on: https://sepolia.etherscan.io/tx/{tx_hash.hex()}")
     print(f"Block Number: {receipt.blockNumber}")
     print(f"Gas Used: {receipt.gasUsed}")
     print("=" * 60)
 
     # Save contract address JSON
+    os.makedirs(COMPILED_DIR, exist_ok=True)
     with open(ADDRESS_JSON_PATH, "w", encoding="utf-8") as f:
         json.dump({
             "ImageVerification": contract_address,
-            "network": "sepolia",
+            "network": "local" if is_local else "sepolia",
             "chainId": chain_id,
             "deployedAt": datetime.now().isoformat()
         }, f, indent=2)
 
-    # Auto-update CONTRACT_ADDRESS in .env files
-    update_env_contract_address(BACKEND_ENV, contract_address)
-    if os.path.exists(ROOT_ENV):
-        update_env_contract_address(ROOT_ENV, contract_address)
-    print(f"\nAuto-updated CONTRACT_ADDRESS in {BACKEND_ENV}")
+    # Auto-update .env files
+    for env_file in [BACKEND_ENV, ROOT_ENV]:
+        if os.path.exists(env_file):
+            update_env_variable(env_file, "CONTRACT_ADDRESS", contract_address)
+            update_env_variable(env_file, "CHAIN_ID", str(chain_id))
+            update_env_variable(env_file, "NETWORK_ID", str(chain_id))
+            if is_local:
+                update_env_variable(env_file, "ETHEREUM_NODE_URL", connected_url)
+    print(f"\nAuto-updated CONTRACT_ADDRESS in .env ({contract_address})")
 
     return contract_address
 

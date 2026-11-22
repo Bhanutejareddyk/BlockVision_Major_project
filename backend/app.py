@@ -7,6 +7,7 @@ from config import Config
 from routes.upload import upload_bp
 from routes.verify import verify_bp
 from routes.history import history_bp
+from routes.auth import auth_bp
 from utils.cleanup import FileCleanup
 from utils.certificate import generate_certificate_pdf, generate_certificate_html
 from utils.auth import (
@@ -66,6 +67,7 @@ print(f"{'='*60}\n")
 app.register_blueprint(upload_bp)
 app.register_blueprint(verify_bp)
 app.register_blueprint(history_bp)
+app.register_blueprint(auth_bp)
 
 
 # Frontend Page Routes
@@ -201,65 +203,6 @@ def health_check():
         'status': 'healthy',
         'message': 'Blockchain Image Verification System is running',
         'contract_address': Config.CONTRACT_ADDRESS or 'Not deployed'
-    }), 200
-
-
-# Auth Endpoints for MetaMask Wallet Login
-@app.route('/api/auth/nonce', methods=['POST'])
-def auth_nonce():
-    """Generate a cryptographic nonce challenge for a wallet address"""
-    try:
-        data = request.get_json(silent=True) or {}
-        wallet_address = data.get('walletAddress', '').strip()
-        if not wallet_address or not wallet_address.startswith('0x') or len(wallet_address) != 42:
-            return jsonify({'success': False, 'error': 'A valid Ethereum wallet address (0x...) is required'}), 400
-
-        nonce = generate_nonce(wallet_address)
-        message = get_expected_message(wallet_address, nonce)
-
-        return jsonify({
-            'success': True,
-            'nonce': nonce,
-            'message': message,
-            'walletAddress': wallet_address
-        }), 200
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/auth/login', methods=['POST'])
-def auth_login():
-    """Verify MetaMask personal_sign signature and return JWT session token"""
-    try:
-        data = request.get_json(silent=True) or {}
-        wallet_address = data.get('walletAddress', '').strip()
-        nonce = data.get('nonce', '').strip()
-        signature = data.get('signature', '').strip()
-
-        if not wallet_address or not nonce or not signature:
-            return jsonify({'success': False, 'error': 'walletAddress, nonce, and signature are required'}), 400
-
-        if not verify_signature(wallet_address, nonce, signature):
-            return jsonify({'success': False, 'error': 'Invalid signature or expired nonce. Please try again.'}), 401
-
-        token = create_session_token(wallet_address)
-        return jsonify({
-            'success': True,
-            'token': token,
-            'wallet': wallet_address.lower(),
-            'expiresIn': 86400
-        }), 200
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/auth/me', methods=['GET'])
-@require_auth
-def auth_me():
-    """Return currently authenticated wallet session"""
-    return jsonify({
-        'success': True,
-        'wallet': g.wallet_address
     }), 200
 
 

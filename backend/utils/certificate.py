@@ -145,7 +145,8 @@ def generate_certificate_pdf(image_hash):
     y = draw_field('Registered Owner:', owner, y, is_mono=True)
     y = draw_field('Registration Timestamp:', reg_date, y)
     y = draw_field('IPFS Storage CID:', ipfs_cid or 'Pinned via Pinata Gateway', y, is_mono=True)
-    y = draw_field('Verification Network:', f"Ethereum Sepolia (Chain ID: {Config.CHAIN_ID})", y)
+    net_name = "Ethereum Sepolia" if Config.CHAIN_ID == 11155111 else ("Ganache Local" if Config.CHAIN_ID in (1337, 5777) else "Ethereum EVM")
+    y = draw_field('Verification Network:', f"{net_name} (Chain ID: {Config.CHAIN_ID})", y)
 
     # Section 2: Cryptographic Proof Details
     y -= 15

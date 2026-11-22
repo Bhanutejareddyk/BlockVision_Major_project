@@ -71,7 +71,7 @@ def verify_signature(wallet_address: str, nonce: str, signature: str) -> bool:
         print(f"Signature verification error: {e}")
         return False
 
-def create_session_token(wallet_address: str) -> str:
+def create_session_token(wallet_address: str, login_type: str = "metamask", email: str = None) -> str:
     """Create a 24-hour JWT session token for authenticated wallet address."""
     clean_addr = wallet_address.strip().lower()
     secret = get_secret_key()
@@ -79,9 +79,12 @@ def create_session_token(wallet_address: str) -> str:
     now = datetime.datetime.now(datetime.timezone.utc)
     payload = {
         "wallet": clean_addr,
+        "loginType": login_type,
         "iat": now,
         "exp": now + datetime.timedelta(hours=TOKEN_EXPIRY_HOURS)
     }
+    if email:
+        payload["email"] = email
     
     token = jwt.encode(payload, secret, algorithm="HS256")
     # If token is bytes in older PyJWT (PyJWT 2.x returns str)
@@ -89,23 +92,29 @@ def create_session_token(wallet_address: str) -> str:
         token = token.decode("utf-8")
     return token
 
-def verify_session_token(token: str):
-    """Verify JWT session token and return wallet address, or None if invalid/expired."""
+def decode_session_token(token: str):
+    """Decode and validate session token payload."""
     if not token:
         return None
     
     secret = get_secret_key()
     try:
-        payload = jwt.decode(token, secret, algorithms=["HS256"])
-        return payload.get("wallet")
-    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError) as e:
+        return jwt.decode(token, secret, algorithms=["HS256"])
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         return None
+
+def verify_session_token(token: str):
+    """Verify JWT session token and return wallet address, or None if invalid/expired."""
+    payload = decode_session_token(token)
+    if payload:
+        return payload.get("wallet")
+    return None
 
 
 def require_auth(f):
     """
     Decorator for routes requiring user authentication via JWT bearer token.
-    Populates Flask's g.wallet_address with the verified wallet address.
+    Populates Flask's g.wallet_address, g.login_type, and g.user_email.
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -113,17 +122,19 @@ def require_auth(f):
         if not auth_header or not auth_header.startswith("Bearer "):
             return jsonify({
                 "success": False,
-                "error": "Authentication required. Please connect your MetaMask wallet and sign in."
+                "error": "Authentication required. Please connect wallet, use email, or continue as guest."
             }), 401
         
         token = auth_header.split(" ", 1)[1].strip()
-        wallet = verify_session_token(token)
-        if not wallet:
+        payload = decode_session_token(token)
+        if not payload or not payload.get("wallet"):
             return jsonify({
                 "success": False,
                 "error": "Invalid or expired session token. Please sign in again."
             }), 401
         
-        g.wallet_address = wallet
+        g.wallet_address = payload.get("wallet")
+        g.login_type = payload.get("loginType", "metamask")
+        g.user_email = payload.get("email")
         return f(*args, **kwargs)
     return decorated_function

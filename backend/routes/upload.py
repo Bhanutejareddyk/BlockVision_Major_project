@@ -491,6 +491,9 @@ def upload_and_register():
 def revoke_image_endpoint():
     """Revoke an image registration on blockchain. Only owner can revoke."""
     try:
+        if getattr(g, 'login_type', '') == 'guest':
+            return jsonify({'success': False, 'error': 'Guest cannot revoke - Login with Email to revoke.'}), 403
+
         data = request.get_json(silent=True) or {}
         image_hash = data.get('imageHash') or data.get('image_hash', '')
         image_hash = image_hash.strip()
@@ -542,6 +545,9 @@ def revoke_image_endpoint():
 def transfer_image_endpoint():
     """Transfer ownership of a registered image to a new wallet address"""
     try:
+        if getattr(g, 'login_type', '') == 'guest':
+            return jsonify({'success': False, 'error': 'Guest cannot transfer - Login with Email to transfer.'}), 403
+
         data = request.get_json(silent=True) or {}
         image_hash = (data.get('imageHash') or data.get('image_hash') or '').strip()
         new_owner = (data.get('newOwner') or data.get('new_owner') or '').strip()

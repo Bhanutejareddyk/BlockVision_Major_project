@@ -135,6 +135,19 @@ contract ImageVerification {
     }
 
     /**
+     * @dev Register a new image directly without IPFS CID (2-argument backward compatibility)
+     *      Delegates to registerImageFor(msg.sender, _imageHash, _fileName, "")
+     * @param _imageHash SHA-256 hash of the image
+     * @param _fileName Original file name
+     */
+    function registerImage(
+        string memory _imageHash, 
+        string memory _fileName
+    ) public returns (bool) {
+        return registerImageFor(msg.sender, _imageHash, _fileName, "");
+    }
+
+    /**
      * @dev Revoke an existing image registration.
      *      Only the owner of the image (or backendAdmin as gas relayer) can call it.
      * @param _imageHash SHA-256 hash of the image to revoke
@@ -196,6 +209,17 @@ contract ImageVerification {
             }
         }
         return true;
+    }
+
+    /**
+     * @dev Register multiple images in batch without IPFS CIDs (2-argument backward compatibility)
+     */
+    function registerBatch(
+        string[] memory _hashes, 
+        string[] memory _fileNames
+    ) public returns (bool) {
+        string[] memory emptyCids = new string[](_hashes.length);
+        return registerBatch(_hashes, _fileNames, emptyCids);
     }
 
     /**

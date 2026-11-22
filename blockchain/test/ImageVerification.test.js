@@ -34,7 +34,7 @@ describe("ImageVerification", function () {
       
       await expect(tx)
         .to.emit(imageVerification, "ImageRegistered")
-        .withArgs(imageHash, owner.address, block.timestamp, fileName);
+        .withArgs(imageHash, owner.address, fileName, "", block.timestamp);
     });
 
     it("Should not register duplicate image hash", async function () {
@@ -109,14 +109,14 @@ describe("ImageVerification", function () {
       expect(details[0]).to.equal(imageHash); // imageHash
       expect(details[1]).to.equal(owner.address); // owner
       expect(details[3]).to.equal(fileName); // fileName
-      expect(details[4]).to.be.true; // exists
+      expect(details[5]).to.be.true; // exists
     });
 
     it("Should return false for non-existent image", async function () {
       const fakeHash = "c".repeat(64);
       const details = await imageVerification.getImageDetails(fakeHash);
       
-      expect(details[4]).to.be.false; // exists
+      expect(details[5]).to.be.false; // exists
     });
 
     it("Should check if image is registered", async function () {

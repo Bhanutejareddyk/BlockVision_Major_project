@@ -797,7 +797,32 @@ svg {
     }
 
     .nav-content {
-        justify-content: center;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .nav-brand {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .brand-name {
+        font-size: 15px;
+    }
+
+    .nav-auth {
+        display: inline-flex;
+        align-items: center;
+        margin-left: auto;
+    }
+
+    .wallet-btn, .wallet-badge {
+        padding: 4px 10px;
+        font-size: 12px;
+        min-height: 30px;
     }
 
     /* iOS-style bottom tab bar */
@@ -808,7 +833,7 @@ svg {
         bottom: 0;
         z-index: 100;
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(5, 1fr);
         gap: 0;
         padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
         background: var(--nav-bg);

@@ -198,17 +198,9 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Token:", token ? "present" : "MISSING");
 
         if (typeof Auth !== 'undefined' && !Auth.isLoggedIn()) {
-            Utils.showToast('Wallet Required', 'Please connect and sign in with your MetaMask wallet to upload.', 'warning');
-            try {
-                await Auth.loginWithWallet();
-            } catch (err) {
-                console.warn('Wallet connection cancelled or failed:', err);
-                return;
-            }
-            if (!Auth.isLoggedIn()) {
-                console.warn('User still not logged in after prompt');
-                return;
-            }
+            Utils.showToast('Sign In Required', 'Please choose a sign-in method or continue as guest to upload.', 'info');
+            Auth.openLoginModal();
+            return;
         }
 
         // Make button ALWAYS responsive: immediately disable and change text
@@ -251,14 +243,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!uploadedData) return;
         
         if (typeof Auth !== 'undefined' && !Auth.isLoggedIn()) {
-            Utils.showToast('Wallet Required', 'Please connect your wallet to register on blockchain.', 'warning');
-            try {
-                await Auth.loginWithWallet();
-            } catch (err) {
-                console.warn('Wallet login cancelled:', err);
-                return;
-            }
-            if (!Auth.isLoggedIn()) return;
+            Utils.showToast('Sign In Required', 'Please sign in or continue as guest to register on blockchain.', 'info');
+            Auth.openLoginModal();
+            return;
         }
 
         const originalText = registerBtn.querySelector('span') ? registerBtn.querySelector('span').textContent : 'Save to Blockchain';
@@ -433,11 +420,11 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 data = await API.uploadImage(selectedFile, encrypt);
             } catch (err) {
-                // Auto re-auth on token expiration (401)
+                // Prompt sign in on token expiration (401)
                 if (err.status === 401 && typeof Auth !== 'undefined') {
-                    console.log("401 detected, re-authenticating wallet session...");
-                    await Auth.loginWithWallet();
-                    data = await API.uploadImage(selectedFile, encrypt);
+                    console.log("401 detected, opening login modal...");
+                    Auth.openLoginModal();
+                    throw new Error('Authentication expired. Please sign in again.');
                 } else {
                     throw err;
                 }
@@ -492,12 +479,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 );
             } catch (err) {
                 if (err.status === 401 && typeof Auth !== 'undefined') {
-                    console.log("401 during registration, re-authenticating wallet session...");
-                    await Auth.loginWithWallet();
-                    result = await API.registerOnBlockchain(
-                        uploadedData.image_hash,
-                        uploadedData.filename
-                    );
+                    console.log("401 during registration, opening login modal...");
+                    Auth.openLoginModal();
+                    throw new Error('Authentication expired. Please sign in again.');
                 } else {
                     throw err;
                 }
@@ -555,8 +539,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 upResult = await API.batchUpload(selectedBatchFiles, encrypt);
             } catch (err) {
                 if (err.status === 401 && typeof Auth !== 'undefined') {
-                    await Auth.loginWithWallet();
-                    upResult = await API.batchUpload(selectedBatchFiles, encrypt);
+                    Auth.openLoginModal();
+                    throw new Error('Authentication expired. Please sign in again.');
                 } else {
                     throw err;
                 }
@@ -582,8 +566,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 regResult = await API.batchRegister(regPayload);
             } catch (err) {
                 if (err.status === 401 && typeof Auth !== 'undefined') {
-                    await Auth.loginWithWallet();
-                    regResult = await API.batchRegister(regPayload);
+                    Auth.openLoginModal();
+                    throw new Error('Authentication expired. Please sign in again.');
                 } else {
                     throw err;
                 }
